@@ -1,7 +1,7 @@
 # HG002 germline WGS with NVIDIA Parabricks
 
 Educational germline analysis of the HG002 reference sample, sequenced on
-NovaSeq PCR-free at nominal 40× coverage.
+NovaSeq PCR-free at nominal 40× coverage with consumer Nvidia RTX 3090 GPU.
 
 The pipeline runs automatically:
 
