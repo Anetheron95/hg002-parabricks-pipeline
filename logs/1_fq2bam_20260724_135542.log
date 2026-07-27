@@ -1,0 +1,9 @@
+﻿Please visit https://docs.nvidia.com/clara/#parabricks for detailed documentation
+
+
+[Parabricks Options Mesg]: Checking argument compatibility
+[Parabricks Options Mesg]: Set --bwa-options="-K #" to produce compatible pair-ended results with previous versions of
+fq2bam or BWA MEM.
+[Parabricks Options Mesg]: Read group created for /workdir/smoke/smoke_1.fastq.gz and /workdir/smoke/smoke_2.fastq.gz
+[Parabricks Options Mesg]: @RG\tID:ERR3684866\tPL:ILLUMINA\tPM:HiSeqX\tLB:HG002\tPU:HHJW2CCXY\tSM:HG002
+[Parabricks Options Mesg]: Using --low-memory sets the number of streams in bwa mem to 1.

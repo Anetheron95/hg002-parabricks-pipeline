@@ -1,0 +1,39 @@
+# Dati genomici e risultati troppo grandi per GitHub
+*.fastq
+*.fastq.gz
+*.fq
+*.fq.gz
+*.bam
+*.bam.bai
+*.cram
+*.crai
+*.vcf
+*.vcf.gz
+*.vcf.gz.tbi
+ref/
+snpEff_data/
+output/*
+reports/*
+
+# Eccezione: il report e il riepilogo dello smoke test sono piccoli e servono
+# come prova che la pipeline gira davvero.
+!reports/HG002_NovaSeq_smoke_test_Report.html
+!reports/HG002_NovaSeq_smoke_test_summary.json
+
+# Log delle nuove run (i log storici in logs/ restano selezionabili a mano)
+logs/runs/
+logs/current_run.env
+logs/current_step.env
+logs/pipeline.lock
+
+# Binary documents: the useful content now lives in docs/data-sources.md
+*.docx
+
+# File temporanei
+*.partial
+*.partial.*
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+

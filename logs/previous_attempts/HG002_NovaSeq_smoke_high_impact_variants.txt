@@ -1,0 +1,6 @@
+CHROM	POS	REF	ALT	ANN[*].GENE	ANN[*].EFFECT	ANN[*].IMPACT
+chr2	240573884	T	TG	RNPEPL1	frameshift_variant&splice_region_variant	HIGH
+chr5	150932295	CT	C	ZNF300P1	splice_acceptor_variant&intron_variant	HIGH
+chr11	63081015	A	C	SLC22A24	stop_gained	HIGH
+chr18	3262786	C	T	MYL12B	LOC104968399	LOC104968399	LOC104968399	MYL12B	MYL12B	splice_donor_variant&intron_variant	upstream_gene_variant	upstream_gene_variant	upstream_gene_variant	intron_variant	intron_variant	HIGH	MODIFIER	MODIFIER	MODIFIER	MODIFIER	MODIFIER
+chr20	29092559	T	G	FRG1DP	splice_donor_variant&intron_variant	HIGH

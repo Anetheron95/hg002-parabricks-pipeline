@@ -1,0 +1,34 @@
+﻿Please visit https://docs.nvidia.com/clara/#parabricks for detailed documentation
+
+
+[Parabricks Options Mesg]: Checking argument compatibility
+[Parabricks Options Mesg]: Read group created for /workdir/down1x/HG002_1x_1.fastq.gz and
+/workdir/down1x/HG002_1x_2.fastq.gz
+[Parabricks Options Mesg]: @RG\tID:ERR3684866\tPL:ILLUMINA\tPM:HiSeqX\tLB:HG002\tPU:HHJW2CCXY\tSM:HG002
+[Parabricks Options Mesg]: Using --low-memory sets the number of streams in bwa mem to 1.
+[PB Info 2026-Jul-24 13:07:11] ------------------------------------------------------------------------------
+[PB Info 2026-Jul-24 13:07:11] ||                 Parabricks accelerated Genomics Pipeline                 ||
+[PB Info 2026-Jul-24 13:07:11] ||                              Version 4.7.0-1                             ||
+[PB Info 2026-Jul-24 13:07:11] ||                      GPU-PBBWA mem, Sorting Phase-I                      ||
+[PB Info 2026-Jul-24 13:07:11] ------------------------------------------------------------------------------
+[PB Info 2026-Jul-24 13:07:11] Mode = pair-ended-gpu
+[PB Info 2026-Jul-24 13:07:11] Running with 1 GPU(s), using 1 stream(s) per device with 1 group(s) of 16 CPU worker thread(s)
+[PB Info 2026-Jul-24 13:07:21] #  0  0  0  0  0   0 pool:  0 0 bases/GPU/minute: 0.0 
+[PB Info 2026-Jul-24 13:07:31] #  0  0  0  0  0   0 pool:  0 0 bases/GPU/minute: 0.0 
+[PB Info 2026-Jul-24 13:07:41] #  0  0  0  0  0   0 pool:  0 0 bases/GPU/minute: 0.0 
+[PB Info 2026-Jul-24 13:07:51] #  0  0  0  0  0   0 pool:  0 0 bases/GPU/minute: 0.0 
+[PB Info 2026-Jul-24 13:08:01] #  4  0  0  0  0   0 pool:  0 0 bases/GPU/minute: 0.0 
+[PB Info 2026-Jul-24 13:08:11] # 10  0  1  0  0   0 pool:  0 0 bases/GPU/minute: 0.0 
+[PB Info 2026-Jul-24 13:08:21] # 10  0  1  0  0   5 pool:  0 100517100 bases/GPU/minute: 603102600.0 
+[PB Info 2026-Jul-24 13:08:31] # 10  0  1  0  0   0 pool:  0 301545600 bases/GPU/minute: 1206171000.0 
+[PB Info 2026-Jul-24 13:08:41] # 10  0  1  0  0   0 pool:  0 401826150 bases/GPU/minute: 601683300.0 
+[PB Info 2026-Jul-24 13:08:51] # 10  0  1  0  0   0 pool:  1 472584750 bases/GPU/minute: 424551600.0 
+[PB Info 2026-Jul-24 13:09:01] # 10  0  1  0  0   0 pool:  1 502180050 bases/GPU/minute: 177571800.0 
+[PB [31mError[0m 2026-Jul-24 13:09:05][src/PBLocalGZISALFile.cpp:35] Error reading file /workdir/down1x/HG002_1x_2.fastq.gz, exiting.
+Process exited with failure. Please check the logs.
+For technical support visit https://docs.nvidia.com/clara/index.html#parabricks
+Exiting...
+
+
+Could not run fq2bam
+Exiting pbrun ...

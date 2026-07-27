@@ -1,0 +1,45 @@
+﻿Please visit https://docs.nvidia.com/clara/#parabricks for detailed documentation
+
+[PB Info 2026-Jul-24 13:32:40] ------------------------------------------------------------------------------
+[PB Info 2026-Jul-24 13:32:40] ||                 Parabricks accelerated Genomics Pipeline                 ||
+[PB Info 2026-Jul-24 13:32:40] ||                              Version 4.7.0-1                             ||
+[PB Info 2026-Jul-24 13:32:40] ||                         GPU-GATK4 HaplotypeCaller                        ||
+[PB Info 2026-Jul-24 13:32:40] ------------------------------------------------------------------------------
+[PB Info 2026-Jul-24 13:33:27] 0 /workdir/output/HG002_1x.bam/workdir/output/HG002_1x.g.vcf.gz
+[PB Info 2026-Jul-24 13:33:27] ProgressMeter -	Current-Locus	Elapsed-Minutes	Regions-Processed	Regions/Minute
+[PB Info 2026-Jul-24 13:33:37] chr1:816001	0.2	14260	85560
+[PB Info 2026-Jul-24 13:33:47] chr1:2313601	0.3	23658	70974
+[PB Info 2026-Jul-24 13:33:57] chr1:4132801	0.5	32596	65192
+[PB Info 2026-Jul-24 13:34:07] chr1:5323201	0.7	41871	62806
+[PB Info 2026-Jul-24 13:34:17] chr1:7492801	0.8	53909	64690
+[PB Info 2026-Jul-24 13:34:27] chr1:8726401	1.0	62615	62615
+[PB Info 2026-Jul-24 13:34:37] chr1:10675201	1.2	72489	62133
+[PB Info 2026-Jul-24 13:34:47] chr1:13315201	1.3	84091	63068
+[PB Info 2026-Jul-24 13:34:57] chr1:15249601	1.5	95851	63900
+[PB Info 2026-Jul-24 13:35:07] chr1:16742401	1.7	104296	62577
+[PB Info 2026-Jul-24 13:35:17] chr1:18172801	1.8	114591	62504
+[PB Info 2026-Jul-24 13:35:27] chr1:20049601	2.0	126450	63225
+[PB Info 2026-Jul-24 13:35:37] chr1:22032001	2.2	137377	63404
+[PB Info 2026-Jul-24 13:35:47] chr1:23889601	2.3	148897	63813
+[PB Info 2026-Jul-24 13:35:57] chr1:25507201	2.5	159778	63911
+[PB Info 2026-Jul-24 13:36:07] chr1:27288001	2.7	170347	63880
+[PB Info 2026-Jul-24 13:36:17] chr1:29428801	2.8	179490	63349
+[PB Info 2026-Jul-24 13:36:27] chr1:30739201	3.0	188517	62839
+[PB Info 2026-Jul-24 13:36:37] chr1:32212801	3.2	197377	62329
+[PB Info 2026-Jul-24 13:36:47] chr1:33676801	3.3	205318	61595
+[PB Info 2026-Jul-24 13:36:57] chr1:35241601	3.5	214423	61263
+[PB Info 2026-Jul-24 13:37:07] chr1:36955201	3.7	221934	60527
+[PB Info 2026-Jul-24 13:37:17] chr1:38582401	3.8	260377	67924
+[PB Info 2026-Jul-24 13:37:27] chr1:234806401	4.0	355346	88836
+[PB Info 2026-Jul-24 13:37:37] chr5:122947201	4.2	425111	102026
+[PB Info 2026-Jul-24 13:37:47] chr5:122947201	4.3	510739	117862
+[PB Info 2026-Jul-24 13:38:02] Total time taken: 275.889406
+[PB Info 2026-Jul-24 13:38:02] ------------------------------------------------------------------------------
+[PB Info 2026-Jul-24 13:38:02] ||        Program:                         GPU-GATK4 HaplotypeCaller        ||
+[PB Info 2026-Jul-24 13:38:02] ||        Version:                                           4.7.0-1        ||
+[PB Info 2026-Jul-24 13:38:02] ||        Start Time:                       Fri Jul 24 13:32:40 2026        ||
+[PB Info 2026-Jul-24 13:38:02] ||        End Time:                         Fri Jul 24 13:38:02 2026        ||
+[PB Info 2026-Jul-24 13:38:02] ||        Total Time:                           5 minutes 22 seconds        ||
+[PB Info 2026-Jul-24 13:38:02] ------------------------------------------------------------------------------
+/usr/local/parabricks/binaries/bin/htvc /workdir/ref/Homo_sapiens_assembly38.fasta /workdir/output/HG002_1x.bam 1 -o /workdir/output/HG002_1x.g.vcf.gz -nt 5 -a /workdir/output/HG002_1x.recal.txt -g --low-memory
+Variant caller done, total time: 5.4 min

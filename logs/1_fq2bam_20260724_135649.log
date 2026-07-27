@@ -1,0 +1,87 @@
+﻿Please visit https://docs.nvidia.com/clara/#parabricks for detailed documentation
+
+
+[Parabricks Options Mesg]: Checking argument compatibility
+[Parabricks Options Mesg]: Read group created for /workdir/smoke/smoke_1.fastq.gz and /workdir/smoke/smoke_2.fastq.gz
+[Parabricks Options Mesg]: @RG\tID:ERR3684866\tPL:ILLUMINA\tPM:HiSeqX\tLB:HG002\tPU:HHJW2CCXY\tSM:HG002
+[Parabricks Options Mesg]: Using --low-memory sets the number of streams in bwa mem to 1.
+[PB Info 2026-Jul-24 11:56:51] ------------------------------------------------------------------------------
+[PB Info 2026-Jul-24 11:56:51] ||                 Parabricks accelerated Genomics Pipeline                 ||
+[PB Info 2026-Jul-24 11:56:51] ||                              Version 4.7.0-1                             ||
+[PB Info 2026-Jul-24 11:56:51] ||                      GPU-PBBWA mem, Sorting Phase-I                      ||
+[PB Info 2026-Jul-24 11:56:51] ------------------------------------------------------------------------------
+[PB Info 2026-Jul-24 11:56:51] Mode = pair-ended-gpu
+[PB Info 2026-Jul-24 11:56:51] Running with 1 GPU(s), using 1 stream(s) per device with 1 group(s) of 16 CPU worker thread(s)
+[PB Info 2026-Jul-24 11:57:01] #  0  0  0  0  0   0 pool:  0 0 bases/GPU/minute: 0.0 
+[PB Info 2026-Jul-24 11:57:11] #  0  0  0  0  0   0 pool:  0 0 bases/GPU/minute: 0.0 
+[PB Info 2026-Jul-24 11:57:21] #  0  0  0  0  0   0 pool:  0 0 bases/GPU/minute: 0.0 
+[PB Info 2026-Jul-24 11:57:31] #  0  0  0  0  0   0 pool:  0 0 bases/GPU/minute: 0.0 
+[PB Info 2026-Jul-24 11:57:41] #  0  0  0  0  0   0 pool:  0 0 bases/GPU/minute: 0.0 
+[PB Info 2026-Jul-24 11:57:51] #  2  0  0  0  0   0 pool:  0 0 bases/GPU/minute: 0.0 
+[PB Info 2026-Jul-24 11:57:52] Time spent reading: 3.874885 seconds
+[PB Info 2026-Jul-24 11:58:01] #  3  0  0  0  0   0 pool:  0 0 bases/GPU/minute: 0.0 
+[PB Info 2026-Jul-24 11:58:11] #  1  0  0  0  0   0 pool:  0 0 bases/GPU/minute: 0.0 
+[PB Info 2026-Jul-24 11:58:21] #  0  0  1  0  0   0 pool:  0 0 bases/GPU/minute: 0.0 
+[PB Info 2026-Jul-24 11:58:31] #  0  0  1  0  0   2 pool:  1 29620950 bases/GPU/minute: 177725700.0 
+[PB Info 2026-Jul-24 11:58:41] #  0  0  1  0  0   0 pool:  1 100517100 bases/GPU/minute: 425376900.0 
+[PB Info 2026-Jul-24 11:58:51] #  0  0  0  0  0   5 pool:  2 100517100 bases/GPU/minute: 0.0 
+[PB Info 2026-Jul-24 11:59:01] #  0  0  0  0  0   0 pool:  2 201017250 bases/GPU/minute: 603000900.0 
+[PB Info 2026-Jul-24 11:59:11] Rate stats (based on sampling every 10 seconds):
+	min rate: 0.0 bases/GPU/minute
+	max rate: 603000900.0 bases/GPU/minute
+	avg rate: 92777192.3 bases/GPU/minute
+[PB Info 2026-Jul-24 11:59:11] Time spent monitoring (multiple of 10): 140.306
+[PB Info 2026-Jul-24 11:59:15] bwalib run finished in 136.797 seconds
+[PB Info 2026-Jul-24 11:59:15] ------------------------------------------------------------------------------
+[PB Info 2026-Jul-24 11:59:15] ||        Program:                    GPU-PBBWA mem, Sorting Phase-I        ||
+[PB Info 2026-Jul-24 11:59:15] ||        Version:                                           4.7.0-1        ||
+[PB Info 2026-Jul-24 11:59:15] ||        Start Time:                       Fri Jul 24 11:56:51 2026        ||
+[PB Info 2026-Jul-24 11:59:15] ||        End Time:                         Fri Jul 24 11:59:15 2026        ||
+[PB Info 2026-Jul-24 11:59:15] ||        Total Time:                           2 minutes 24 seconds        ||
+[PB Info 2026-Jul-24 11:59:15] ------------------------------------------------------------------------------
+[PB Info 2026-Jul-24 11:59:17] ------------------------------------------------------------------------------
+[PB Info 2026-Jul-24 11:59:17] ||                 Parabricks accelerated Genomics Pipeline                 ||
+[PB Info 2026-Jul-24 11:59:17] ||                              Version 4.7.0-1                             ||
+[PB Info 2026-Jul-24 11:59:17] ||                             Sorting Phase-II                             ||
+[PB Info 2026-Jul-24 11:59:17] ------------------------------------------------------------------------------
+[PB Info 2026-Jul-24 11:59:17] Using CPU-mode for sort when duplicate metrics file is requested.
+[PB Info 2026-Jul-24 11:59:17] Performance may be slower than GPU-mode.
+[PB Info 2026-Jul-24 11:59:17] progressMeter - Percentage
+[PB Info 2026-Jul-24 11:59:17] 0.0
+[PB Info 2026-Jul-24 11:59:22] Sorting and Marking: 5.001 seconds
+[PB Info 2026-Jul-24 11:59:22] ------------------------------------------------------------------------------
+[PB Info 2026-Jul-24 11:59:22] ||        Program:                                  Sorting Phase-II        ||
+[PB Info 2026-Jul-24 11:59:22] ||        Version:                                           4.7.0-1        ||
+[PB Info 2026-Jul-24 11:59:22] ||        Start Time:                       Fri Jul 24 11:59:17 2026        ||
+[PB Info 2026-Jul-24 11:59:22] ||        End Time:                         Fri Jul 24 11:59:22 2026        ||
+[PB Info 2026-Jul-24 11:59:22] ||        Total Time:                                      5 seconds        ||
+[PB Info 2026-Jul-24 11:59:22] ------------------------------------------------------------------------------
+[PB Info 2026-Jul-24 11:59:22] ------------------------------------------------------------------------------
+[PB Info 2026-Jul-24 11:59:22] ||                 Parabricks accelerated Genomics Pipeline                 ||
+[PB Info 2026-Jul-24 11:59:22] ||                              Version 4.7.0-1                             ||
+[PB Info 2026-Jul-24 11:59:22] ||                         Marking Duplicates, BQSR                         ||
+[PB Info 2026-Jul-24 11:59:22] ------------------------------------------------------------------------------
+[PB Info 2026-Jul-24 11:59:22] BQSR using CUDA device(s): { 0 }
+[PB Info 2026-Jul-24 11:59:23] Using PBBinBamFile for BAM writing
+[PB Info 2026-Jul-24 11:59:23] progressMeter -	Percentage
+[PB Info 2026-Jul-24 11:59:33] 0.0
+[PB Info 2026-Jul-24 11:59:43] 0.0
+[PB Info 2026-Jul-24 11:59:53] 0.0
+[PB Info 2026-Jul-24 12:00:03] 0.0
+[PB Info 2026-Jul-24 12:00:13] 0.0
+[PB Info 2026-Jul-24 12:00:22] Checking if the index file exists for the input compressed file:/workdir/ref/Homo_sapiens_assembly38.dbsnp138.vcf.gz for better performance
+[PB Info 2026-Jul-24 12:00:23] 0.0
+[PB Info 2026-Jul-24 12:00:33] 0.0
+[PB Info 2026-Jul-24 12:00:43] 0.0
+[PB Info 2026-Jul-24 12:00:53] 0.0
+[PB Info 2026-Jul-24 12:01:01] 472254 reads are filtered
+[PB Info 2026-Jul-24 12:01:03] 100.0
+[PB Info 2026-Jul-24 12:01:03] BQSR and writing final BAM:  100.022 seconds
+[PB Info 2026-Jul-24 12:01:03] ------------------------------------------------------------------------------
+[PB Info 2026-Jul-24 12:01:03] ||        Program:                          Marking Duplicates, BQSR        ||
+[PB Info 2026-Jul-24 12:01:03] ||        Version:                                           4.7.0-1        ||
+[PB Info 2026-Jul-24 12:01:03] ||        Start Time:                       Fri Jul 24 11:59:22 2026        ||
+[PB Info 2026-Jul-24 12:01:03] ||        End Time:                         Fri Jul 24 12:01:03 2026        ||
+[PB Info 2026-Jul-24 12:01:03] ||        Total Time:                            1 minute 41 seconds        ||
+[PB Info 2026-Jul-24 12:01:03] ------------------------------------------------------------------------------
+

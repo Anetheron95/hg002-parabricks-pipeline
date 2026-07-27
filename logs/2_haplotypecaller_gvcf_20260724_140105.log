@@ -1,0 +1,18 @@
+﻿Please visit https://docs.nvidia.com/clara/#parabricks for detailed documentation
+
+[PB Info 2026-Jul-24 12:01:07] ------------------------------------------------------------------------------
+[PB Info 2026-Jul-24 12:01:07] ||                 Parabricks accelerated Genomics Pipeline                 ||
+[PB Info 2026-Jul-24 12:01:07] ||                              Version 4.7.0-1                             ||
+[PB Info 2026-Jul-24 12:01:07] ||                         GPU-GATK4 HaplotypeCaller                        ||
+[PB Info 2026-Jul-24 12:01:07] ------------------------------------------------------------------------------
+[PB Info 2026-Jul-24 12:01:48] 0 /workdir/output/smoke.bam/workdir/output/smoke.g.vcf.gz
+[PB Info 2026-Jul-24 12:01:48] ProgressMeter -	Current-Locus	Elapsed-Minutes	Regions-Processed	Regions/Minute
+[PB [31mError[0m 2026-Jul-24 12:01:50][src/fileHandleCommon.cpp:986] Loop count 4294952860 was too big., expected count < LOOPSIZE, exiting.
+/usr/local/parabricks/binaries/bin/htvc /workdir/ref/Homo_sapiens_assembly38.fasta /workdir/output/smoke.bam 1 -o /workdir/output/smoke.g.vcf.gz -nt 5 -a /workdir/output/smoke.recal.txt -g --low-memory
+Process exited with failure. Please check the logs.
+Process exited with failure. Please check the logs.
+For technical support visit https://docs.nvidia.com/clara/index.html#parabricks
+Exiting...
+
+Could not run haplotypecaller
+Exiting pbrun ...
