@@ -64,7 +64,7 @@ A file is never treated as valid merely because it exists.
 
 ## How the code is organised
 
-- `run_parabricks_hg002.sh` — the main recipe, written to be read by a student;
+- `run_parabricks_hg002.sh` — the main recipe;
 - `scripts/pipeline_functions.sh` — Docker orchestration, checkpoints and logs;
 - `scripts/postprocess.sh` — filtering, annotation and QC metrics;
 - `scripts/generate_report.py` — HTML report and JSON summary;
