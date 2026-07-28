@@ -18,6 +18,15 @@ Pre-built BWA indexes, so they do not have to be regenerated locally:
 
 ```
 https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta.64.alt
+```
+
+> **Warning.** The `.alt` file above is listed here but was never downloaded,
+> and the local BWA indexes are not the `.64.*` variants either. That omission
+> is the root cause of the MHC sensitivity loss documented in the README: the
+> reference keeps its 261 ALT contigs while BWA has no way to know they are
+> alternates. Fix this before the next alignment run.
+
+```
 https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta.64.amb
 https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta.64.ann
 https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta.64.bwt
@@ -39,7 +48,7 @@ Measured properties of the files in use:
 | Read length | 151 bp, uniform |
 | Total bases | ~143.3 Gbp |
 | Raw coverage over 3.1 Gbp | ~46× |
-| Coverage after duplicates (8.6%) | ~42× |
+| Coverage after duplicates (12.08%) | ~41× |
 | File sizes | 34.2 GB (R1) and 35.4 GB (R2) |
 
 Source, from the public Google Brain Genomics bucket:

@@ -48,3 +48,6 @@ Thumbs.db
 
 # Log di console del benchmark GIAB
 logs/giab_benchmark.log
+
+# Dipendenze Python locali, non fanno parte del progetto
+.python-packages/

@@ -485,7 +485,7 @@ def generate_report(args: argparse.Namespace) -> None:
     <p>output/{prefix}.vcf.gz (+ .tbi)</p>
     <p>output/{prefix}.hardfiltered.vcf.gz (+ .tbi)</p>
     <p>output/{prefix}_annotated.vcf.gz (+ .tbi)</p>
-    <p>output/{prefix}_high_impact_variants.txt</p>
+    <p>output/{prefix}_high_impact_variants.tsv</p>
     <p>reports/{prefix}_summary.json</p></div>
     </main></body></html>"""
     report_path = reports / f"{prefix}_Report.html"

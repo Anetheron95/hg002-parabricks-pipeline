@@ -34,7 +34,9 @@ Last updated 28 July 2026.
   the cause is identified.
 - **Next: re-run against the no-ALT analysis set.** The fix is understood and
   costs roughly seven hours of compute. It has not been done yet, so every
-  number published here still comes from the ALT-carrying reference.
+  number published here still comes from the ALT-carrying reference. The
+  re-run cannot start before the checkpoint provenance problem described below
+  is fixed, otherwise it would silently reuse the current results.
 
 ## Results
 
@@ -89,7 +91,7 @@ Breadth over the 2,923,716,080 non-N bases of chr1–22, X and Y:
 | Mapped | 99.73 % |
 | Properly paired | 97.85 % |
 | Singletons | 0.17 % |
-| Duplicates | 12.05 % (5,802,003 optical read pairs) |
+| Duplicates | 12.08 % (5,802,003 optical read pairs) |
 | Insert size | 410 ± 171 bp |
 | Error rate | 0.58 % |
 | Mean base quality | 35.5 |
@@ -122,7 +124,7 @@ what HG002 is.
 
 ## GIAB benchmark
 
-Method: `hap.py` v0.3.12 with the `vcfeval` engine (rtgtools 3.11), against
+Method: `hap.py` v0.3.12 with the `vcfeval` engine (rtgtools 3.10.1), against
 NIST HG002 GRCh38 v4.2.1, restricted to the high-confidence BED. The truth set
 covers chr1–22 and contains 3,365,127 SNPs and 525,469 indels. Reproduce with
 `bash benchmark_giab.sh`.
@@ -161,9 +163,17 @@ chr6, chr17, chr15 and chr19 are precisely the chromosomes carrying the most
 ALT scaffolds in GRCh38 — the MHC region on chr6 alone has seven alternate
 haplotypes.
 
-The cause follows from that. `Homo_sapiens_assembly38.fasta` includes the ALT
-contigs, but the accompanying `.alt` file is absent and no alt-aware
-post-processing is performed. Reads that map equally well to a primary locus
+Narrowing to that region turns the pattern into something much sharper. Within
+`chr6:28,510,120-33,480,577` the truth set holds 20,177 SNPs. The pipeline
+recovered 301 of them and missed 19,876 — **98.51 %**. Mean depth inside the
+MHC collapses to 7.64× against 35× genome-wide. The MHC alone accounts for
+86.1 % of all false negatives on chr6.
+
+The cause follows from that, and it is directly verifiable rather than
+inferred: the reference holds 3,366 contigs of which 261 end in `_alt`, there
+is no `Homo_sapiens_assembly38.fasta.alt` file next to it, and the BAM header
+carries no `AH` tags. Without the ALT file BWA treats those alignments as
+ordinary multi-mapping. Reads that map equally well to a primary locus
 and to an alternate scaffold are given MAPQ 0, HaplotypeCaller discards them
 below its default mapping-quality threshold of 20, and the variants underneath
 are never called. This is consistent with the 61.4 million MQ0 reads (6.5 %)
@@ -185,6 +195,47 @@ same quantity the ALT problem depresses. The two defects compound: the
 reference lowers MAPQ, then the filter deletes what survived. Whether the SNP
 filters are worth keeping should be re-decided after the no-ALT re-run, not
 before, since the re-run changes the input to that decision.
+
+## What this call set is, and what it is not
+
+This is a **benchmarked autosomal call set**. The distinction matters, because
+the GIAB v4.2.1 truth set covers chr1–22 inside high-confidence regions and
+nothing else. Every accuracy figure above is scoped to that, and says nothing
+about X, Y, the mitochondrial genome, ALT contigs, decoys or any other
+difficult region.
+
+The sex chromosomes carry a further problem that the benchmark cannot see.
+HaplotypeCaller was run with a single diploid ploidy setting across the whole
+genome. HG002 is male, so outside the pseudoautosomal regions chrX and chrY are
+haploid and a heterozygous call there is not biologically meaningful. The
+output nevertheless contains 10,740 PASS records on chrY of which **7,777 are
+heterozygous — 72.41 %**. chrM is represented diploid as well, which is not a
+heteroplasmy analysis by any definition.
+
+None of this affects the autosomal results, which were called, filtered and
+benchmarked normally. It does mean the sex chromosomes and the mitochondrial
+genome in this VCF should not be interpreted at all until they are re-called
+with the correct ploidy, and mtDNA with a dedicated workflow.
+
+## Before the next run: checkpoint provenance
+
+The resume logic that saved seven hours after the QC failure is also a trap
+waiting for the next iteration, and it has to be dealt with before the
+reference is touched.
+
+Checkpoints are keyed on a fixed `PREFIX` and `WORK_VOLUME` written into
+`run_parabricks_hg002.sh`. Validation checks that a file is structurally sound,
+indexed, and carries the expected sample and read group — but nothing binds a
+checkpoint to a hash of the FASTQ, of the reference, of the parameters or of
+the container image. Swap in the no-ALT reference while keeping the same volume
+and prefix and the old BAM will still validate, the alignment will be skipped,
+and the pipeline will report `PASS` while returning exactly the results it was
+supposed to replace.
+
+The second iteration therefore starts with a new prefix and new volumes, or
+better with a provenance manifest that invalidates checkpoints whenever an
+input changes. The current run must be preserved untouched as the baseline to
+compare against.
 
 ## The three commands you need
 
@@ -282,15 +333,29 @@ where to obtain each of them.
   report, and does not present them as annotated.
 - The reference carries ALT contigs without the `.alt` file and without
   alt-aware post-processing. The benchmark quantifies the cost: 3.03 % of true
-  SNPs missed genome-wide, rising to 10.39 % on chr6. This is the largest known
-  defect in the current results and the reason for the planned re-run.
-- Ti/Tv is 1.928 against 2.10 in the truth set. The benchmark shows this is
-  driven by missing true SNPs rather than by an excess of false ones:
-  precision is 99.33 %.
+  SNPs missed genome-wide, rising to 10.39 % on chr6 and to 98.51 % inside the
+  MHC region itself. This is the largest known defect in the current results
+  and the reason for the planned re-run.
+- Ti/Tv is 1.928 across the whole call set, which mixes in contigs the truth
+  set cannot judge. Inside the GIAB scope it is 1.9595 for ALL and 2.0261 for
+  PASS against 2.10 in the truth set. The gap is driven by missing true SNPs
+  rather than by an excess of false ones: precision is 99.33 %.
 - The SNP hard filters currently reduce F1 rather than improve it. They are
   left unchanged on purpose until the reference problem is fixed, so that one
   variable moves at a time.
 - The "40×" in the dataset name is the publisher's label, not a measurement.
   The effective coverage measured on this run is 35.0×; see Results for the
   three definitions and how they reconcile.
+- The call set is autosomal. X, Y and mtDNA were called with a global diploid
+  ploidy and are not validated by GIAB; 72.41 % of PASS records on chrY are
+  heterozygous, which is an artefact of that setting.
+- Checkpoints are not bound to input hashes, so a reference change alone does
+  not invalidate them. See the provenance section above.
+- The 613 PASS + HIGH records are a technical shortlist with no genotype
+  threshold applied: 22 have DP below 10, 18 have GQ below 30, and 7 sit on ALT
+  contigs. `PASS` plus predicted `HIGH` impact means the site passed the
+  filters and the effect predictor expects a large consequence. It does not
+  mean pathogenic, and no ACMG/AMP classification was performed.
+- snpEff 5.1d with the 2020 hg38 database is adequate as a technical control
+  and out of date for anything resembling interpretation.
 - Hard filters and snpEff are technical controls, not clinical interpretation.
