@@ -20,6 +20,14 @@ reports/*
 !reports/HG002_NovaSeq_smoke_test_Report.html
 !reports/HG002_NovaSeq_smoke_test_summary.json
 
+# Eccezione: il riepilogo del benchmark GIAB pesa pochi kB ed e' il numero che
+# rende verificabile ogni affermazione di accuratezza nel README.
+# Gli altri output di hap.py (VCF annotato, ROC, metriche) restano esclusi.
+!reports/giab/
+reports/giab/*
+!reports/giab/giab_benchmark.json
+!reports/giab/happy.summary.csv
+
 # Log delle nuove run (i log storici in logs/ restano selezionabili a mano)
 logs/runs/
 logs/current_run.env
@@ -37,3 +45,6 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+
+# Log di console del benchmark GIAB
+logs/giab_benchmark.log

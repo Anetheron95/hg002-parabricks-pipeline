@@ -388,16 +388,47 @@ case "$command_name" in
 
         # CollectWgsMetrics produce direttamente PCT_1X/10X/20X/30X senza
         # generare una riga per ognuno dei ~3,1 miliardi di loci.
-        gatk --java-options "-Xmx8g" CollectWgsMetrics \
-            -I "$bam" \
-            -O "${prefix}.wgs_metrics.txt.partial" \
-            -R "$REFERENCE" \
-            --INTERVALS "$interval_list" \
-            --USE_FAST_ALGORITHM true \
-            --VALIDATION_STRINGENCY SILENT \
-            --MINIMUM_MAPPING_QUALITY 20 \
-            --MINIMUM_BASE_QUALITY 20 \
-            --TMP_DIR /pbtmp
+        #
+        # Il collector "veloce" di Picard dimensiona i contatori su READ_LENGTH.
+        # Il valore predefinito e' 150: con read da 151 bp si ottiene
+        # "ArrayIndexOutOfBoundsException: requested index ... out of counter
+        # bounds". Leggiamo quindi la lunghezza reale da samtools stats, che e'
+        # gia stato calcolato qui sopra, invece di affidarci al default.
+        read_length="$(
+            awk -F '\t' '$2 == "maximum length:" {print $3; exit}' \
+                "${prefix}.samtools_stats.txt.partial"
+        )"
+        read_length="${read_length:-151}"
+
+        # Anche con READ_LENGTH corretto il collector veloce ha un baco noto
+        # nella gestione della finestra (Picard #1523, #1970). Se fallisce si
+        # ripiega sull'algoritmo standard: piu lento, ma senza quel problema.
+        # Meglio qualche minuto in piu' che perdere una run da sette ore.
+        if ! gatk --java-options "-Xmx8g" CollectWgsMetrics \
+                -I "$bam" \
+                -O "${prefix}.wgs_metrics.txt.partial" \
+                -R "$REFERENCE" \
+                --INTERVALS "$interval_list" \
+                --USE_FAST_ALGORITHM true \
+                --READ_LENGTH "$read_length" \
+                --VALIDATION_STRINGENCY SILENT \
+                --MINIMUM_MAPPING_QUALITY 20 \
+                --MINIMUM_BASE_QUALITY 20 \
+                --TMP_DIR /pbtmp; then
+            echo "CollectWgsMetrics veloce fallito con READ_LENGTH=${read_length};" \
+                 "riprovo con l'algoritmo standard." >&2
+            rm -f "${prefix}.wgs_metrics.txt.partial"
+            gatk --java-options "-Xmx8g" CollectWgsMetrics \
+                -I "$bam" \
+                -O "${prefix}.wgs_metrics.txt.partial" \
+                -R "$REFERENCE" \
+                --INTERVALS "$interval_list" \
+                --USE_FAST_ALGORITHM false \
+                --VALIDATION_STRINGENCY SILENT \
+                --MINIMUM_MAPPING_QUALITY 20 \
+                --MINIMUM_BASE_QUALITY 20 \
+                --TMP_DIR /pbtmp
+        fi
 
         awk -F '\t' '
             /^GENOME_TERRITORY\t/ {

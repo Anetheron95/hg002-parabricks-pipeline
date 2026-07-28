@@ -8,9 +8,6 @@
 #   3. calcola BQSR e chiama le varianti
 #   4. filtra e annota il VCF
 #   5. produce QC, esportazione e report
-#
-# Non modificare i comandi: per la run normale basta avviare questo file.
-# I dettagli tecnici di Docker e dei checkpoint sono in scripts/.
 # =============================================================================
 
 set -Eeuo pipefail
