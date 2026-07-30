@@ -18,13 +18,41 @@
 set -Eeuo pipefail
 
 PROGETTO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PREFIX="${PREFIX:-HG002_NovaSeq_40x}"
+
+# Il riferimento deve essere quello contro cui il VCF e' stato chiamato:
+# vcfeval normalizza le varianti rileggendo le basi, e con il riferimento
+# sbagliato i conteggi non hanno senso.
+REF_NAME="${HG002_REF_NAME:-GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna}"
+REFERENCE="${PROGETTO}/ref/${REF_NAME}"
+REFERENCE_CONTAINER="/data/ref/${REF_NAME}"
+
+# Da quando i prefissi portano la chiave di provenance non sono piu' costanti.
+# Se PREFIX non e' passato, viene dedotto dai VCF presenti in output/, e in caso
+# di ambiguita' lo script si ferma invece di scegliere al posto tuo.
+if [[ -z "${PREFIX:-}" ]]; then
+    mapfile -t candidati < <(
+        find "${PROGETTO}/output" -maxdepth 1 -name '*.hardfiltered.vcf.gz' \
+             -printf '%f\n' 2>/dev/null | sed 's/\.hardfiltered\.vcf\.gz$//' | sort
+    )
+    case "${#candidati[@]}" in
+        0) printf 'Nessun VCF hard-filtered in output/. Esegui prima la pipeline.\n' >&2
+           exit 1 ;;
+        1) PREFIX="${candidati[0]}" ;;
+        *) printf 'Piu di un VCF disponibile: indica quale valutare con PREFIX=...\n' >&2
+           printf '  %s\n' "${candidati[@]}" >&2
+           exit 1 ;;
+    esac
+fi
 
 QUERY_VCF="${PROGETTO}/output/${PREFIX}.hardfiltered.vcf.gz"
-REFERENCE="${PROGETTO}/ref/Homo_sapiens_assembly38.fasta"
 GIAB_DIR="${PROGETTO}/ref/giab"
-SDF_DIR="${GIAB_DIR}/GRCh38.sdf"
-OUT_DIR="${PROGETTO}/reports/giab"
+SDF_DIR="${GIAB_DIR}/${REF_NAME%.*}.sdf"
+
+# Una cartella per prefisso. Con OUT_DIR fisso, valutare una seconda run
+# sovrascriveva il benchmark della prima: hap.py scrive sempre gli stessi nomi
+# (happy.summary.csv, happy.roc.*, happy.vcf.gz). L'iterazione 2 avrebbe
+# cancellato il proprio termine di paragone.
+OUT_DIR="${PROGETTO}/reports/giab/${PREFIX}"
 LOG_FILE="${OUT_DIR}/happy.log"
 
 HAPPY_IMG="jmcdani20/hap.py:v0.3.12"
@@ -50,7 +78,8 @@ if ! $DOCKER image inspect "$HAPPY_IMG" >/dev/null 2>&1; then
     echo "Immagine $HAPPY_IMG assente: la scarico..."
     $DOCKER pull "$HAPPY_IMG"
 fi
-echo "VCF da valutare: $(du -h "$QUERY_VCF" | cut -f1)"
+echo "VCF da valutare: ${PREFIX} ($(du -h "$QUERY_VCF" | cut -f1))"
+echo "Riferimento:     ${REF_NAME}"
 
 # --- 2. Truth set ------------------------------------------------------------
 msg "2/5 - Truth set GIAB v4.2.1 (circa 250 MB, solo la prima volta)"
@@ -79,12 +108,13 @@ else
     rm -rf "$SDF_DIR"
     if $DOCKER run --rm \
             --volume "${PROGETTO}":/data \
+            --env "REF_CONTAINER=${REFERENCE_CONTAINER}" \
+            --env "SDF_CONTAINER=/data/ref/giab/$(basename "$SDF_DIR")" \
             "$HAPPY_IMG" \
             bash -lc 'RTG="$(command -v rtg || true)"
                       [[ -n "$RTG" ]] || RTG=/opt/hap.py/libexec/rtg-tools-install/rtg
                       [[ -x "$RTG" ]] || exit 42
-                      "$RTG" format -o /data/ref/giab/GRCh38.sdf \
-                             /data/ref/Homo_sapiens_assembly38.fasta'; then
+                      "$RTG" format -o "$SDF_CONTAINER" "$REF_CONTAINER"'; then
         echo "SDF creato."
         USA_SDF=1
     else
@@ -104,19 +134,20 @@ THREADS=$(( CORE < 8 ? CORE : 8 ))   # con 32 GB di RAM meglio non esagerare
 echo "Uso ${THREADS} thread su ${CORE} disponibili."
 
 OPZIONI_SDF=()
-[[ "$USA_SDF" -eq 1 ]] && OPZIONI_SDF=(--engine-vcfeval-template /data/ref/giab/GRCh38.sdf)
+[[ "$USA_SDF" -eq 1 ]] &&
+    OPZIONI_SDF=(--engine-vcfeval-template "/data/ref/giab/$(basename "$SDF_DIR")")
 
 $DOCKER run --rm \
     --volume "${PROGETTO}":/data \
-    --env HGREF=/data/ref/Homo_sapiens_assembly38.fasta \
+    --env "HGREF=${REFERENCE_CONTAINER}" \
     --env RTG_MEM=12G \
     "$HAPPY_IMG" \
     /opt/hap.py/bin/hap.py \
         "/data/ref/giab/$(basename "$TRUTH_VCF")" \
         "/data/output/${PREFIX}.hardfiltered.vcf.gz" \
         -f "/data/ref/giab/$(basename "$TRUTH_BED")" \
-        -r /data/ref/Homo_sapiens_assembly38.fasta \
-        -o "/data/reports/giab/happy" \
+        -r "$REFERENCE_CONTAINER" \
+        -o "/data/reports/giab/${PREFIX}/happy" \
         --engine=vcfeval \
         "${OPZIONI_SDF[@]}" \
         --threads "$THREADS" \
@@ -160,7 +191,7 @@ for r in righe:
 with open(os.path.join(out_dir, "giab_benchmark.json"), "w", encoding="utf-8") as f:
     json.dump({"truth_set": "HG002 GIAB v4.2.1 GRCh38 (chr1-22, high-confidence BED)",
                "engine": "vcfeval", "results": risultati}, f, indent=2)
-print("\nRiepilogo JSON: reports/giab/giab_benchmark.json")
+print(f"\nRiepilogo JSON: {os.path.join(out_dir, 'giab_benchmark.json')}")
 PY
 
 msg "Benchmark completato. Dettagli in ${OUT_DIR}"

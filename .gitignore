@@ -23,10 +23,18 @@ reports/*
 # Eccezione: il riepilogo del benchmark GIAB pesa pochi kB ed e' il numero che
 # rende verificabile ogni affermazione di accuratezza nel README.
 # Gli altri output di hap.py (VCF annotato, ROC, metriche) restano esclusi.
+#
+# Da luglio 2026 hap.py scrive in reports/giab/<prefisso>/, una cartella per
+# run valutata, perche' con un percorso fisso il secondo benchmark cancellava
+# il primo. Le eccezioni devono quindi scendere di un livello: in git non si
+# puo' re-includere un file se una cartella superiore resta esclusa, per questo
+# servono anche le righe sulle cartelle.
 !reports/giab/
 reports/giab/*
-!reports/giab/giab_benchmark.json
-!reports/giab/happy.summary.csv
+!reports/giab/*/
+reports/giab/*/*
+!reports/giab/*/giab_benchmark.json
+!reports/giab/*/happy.summary.csv
 
 # Log delle nuove run (i log storici in logs/ restano selezionabili a mano)
 logs/runs/
