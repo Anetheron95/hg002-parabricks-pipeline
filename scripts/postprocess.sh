@@ -5,8 +5,12 @@ set -Eeuo pipefail
 
 PROJECT="/project"
 WORK="/work"
-REFERENCE="${PROJECT}/ref/Homo_sapiens_assembly38.fasta"
-REFERENCE_DICT="${PROJECT}/ref/Homo_sapiens_assembly38.dict"
+
+# Il riferimento arriva dall'ambiente: lo passano run_tools e tools_quiet in
+# pipeline_functions.sh, cosi' esiste un solo posto dove cambiarlo. Il default
+# serve solo a chi esegue questo script a mano.
+REFERENCE="${REFERENCE:-${PROJECT}/ref/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna}"
+REFERENCE_DICT="${REFERENCE_DICT:-${REFERENCE%.*}.dict}"
 
 usage() {
     echo "Comando non valido per postprocess.sh" >&2
@@ -193,15 +197,47 @@ case "$command_name" in
             --select-type-to-exclude INDEL \
             -O "$other"
 
-        gatk --java-options "-Xmx8g" VariantFiltration \
-            -R "$REFERENCE" -V "$snps" -O "${prefix}.tmp.snps.filtered.vcf.gz" \
-            --filter-name "SNP_QD2" --filter-expression "QD < 2.0" \
-            --filter-name "SNP_QUAL30" --filter-expression "QUAL < 30.0" \
-            --filter-name "SNP_SOR3" --filter-expression "SOR > 3.0" \
-            --filter-name "SNP_FS60" --filter-expression "FS > 60.0" \
-            --filter-name "SNP_MQ40" --filter-expression "MQ < 40.0" \
-            --filter-name "SNP_MQRankSum" --filter-expression "vc.hasAttribute('MQRankSum') && MQRankSum < -12.5" \
-            --filter-name "SNP_ReadPosRankSum" --filter-expression "vc.hasAttribute('ReadPosRankSum') && ReadPosRankSum < -8.0"
+        # I filtri hard sugli SNP sono DISATTIVATI per default dal 30 luglio 2026.
+        #
+        # Non e' una preferenza: e' una misura. Sul benchmark GIAB v4.2.1
+        # dell'iterazione 2, applicarli fa scendere l'F1 degli SNP da 0,9921 a
+        # 0,9883, perche' rimuovono 40.409 veri positivi per eliminarne 15.445
+        # falsi -- 2,6 buoni per ogni errore preso. Lo stesso valeva per la
+        # baseline (3,0 per 1), quindi non e' un effetto del cambio di
+        # riferimento: le soglie storiche di GATK sono tarate su dati e
+        # profondita' diversi da questi.
+        #
+        # Sugli indel restano attivi, perche' li' sono neutri o lievemente
+        # utili: F1 da 0,9924 (ALL) a 0,9928 (PASS).
+        #
+        # Per ripristinare il comportamento precedente:  HG002_SNP_HARD_FILTERS=on
+        snp_filtri=()
+        if [[ "${HG002_SNP_HARD_FILTERS:-off}" == "on" ]]; then
+            snp_filtri=(
+                --filter-name "SNP_QD2"            --filter-expression "QD < 2.0"
+                --filter-name "SNP_QUAL30"         --filter-expression "QUAL < 30.0"
+                --filter-name "SNP_SOR3"           --filter-expression "SOR > 3.0"
+                --filter-name "SNP_FS60"           --filter-expression "FS > 60.0"
+                --filter-name "SNP_MQ40"           --filter-expression "MQ < 40.0"
+                --filter-name "SNP_MQRankSum"      --filter-expression "vc.hasAttribute('MQRankSum') && MQRankSum < -12.5"
+                --filter-name "SNP_ReadPosRankSum" --filter-expression "vc.hasAttribute('ReadPosRankSum') && ReadPosRankSum < -8.0"
+            )
+        fi
+
+        if [[ ${#snp_filtri[@]} -gt 0 ]]; then
+            echo "Filtri hard sugli SNP: ATTIVI (HG002_SNP_HARD_FILTERS=on)"
+            gatk --java-options "-Xmx8g" VariantFiltration \
+                -R "$REFERENCE" -V "$snps" -O "${prefix}.tmp.snps.filtered.vcf.gz" \
+                "${snp_filtri[@]}"
+        else
+            echo "Filtri hard sugli SNP: disattivati (F1 0,9921 contro 0,9883 con filtri)"
+            cp -f "$snps" "${prefix}.tmp.snps.filtered.vcf.gz"
+            if [[ -s "${snps}.tbi" ]]; then
+                cp -f "${snps}.tbi" "${prefix}.tmp.snps.filtered.vcf.gz.tbi"
+            else
+                tabix -f -p vcf "${prefix}.tmp.snps.filtered.vcf.gz"
+            fi
+        fi
 
         gatk --java-options "-Xmx8g" VariantFiltration \
             -R "$REFERENCE" -V "$indels" -O "${prefix}.tmp.indels.filtered.vcf.gz" \
