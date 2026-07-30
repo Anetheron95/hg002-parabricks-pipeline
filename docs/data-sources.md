@@ -4,7 +4,37 @@ Direct download addresses for everything the pipeline expects to find locally.
 None of these files are versioned in this repository: they amount to tens of
 gigabytes and all come from public archives.
 
-## GRCh38 reference
+## GRCh38 reference — no-ALT analysis set (current default)
+
+Used from iteration 2 onwards. `scripts/fetch_reference_noalt.sh` downloads,
+verifies and prepares it; the addresses are recorded here for provenance.
+
+```
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna.gz
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna.fai
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna.bwa_index.tar.gz
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/md5checksums.txt
+```
+
+The BWA indexes are published pre-built, so `bwa index` is never run locally:
+it would cost about an hour of CPU for an identical result. The `.dict` is
+generated with `samtools dict`. Integrity is checked three ways: the MD5
+declared by NCBI, a `gzip -t` on the archives, and a regenerated `.fai`
+compared byte for byte against the published one.
+
+**Why this variant and not another.** NCBI publishes four analysis sets. This
+one differs from the iteration-1 reference in exactly one respect: the ALT
+contigs (and the HLA contigs that depend on them) are gone, while the hs38d1
+decoys are kept. The decoys matter — they absorb junk reads that would
+otherwise stick to real chromosomes and produce false positives. Dropping them
+together with the ALT contigs would move two variables at once.
+
+Contig names stay UCSC-style (`chr1`, `chr2`, …) and the primary chromosomes
+keep identical names and lengths, which is why dbSNP, snpEff and the GIAB BED
+remain usable without modification. `scripts/fetch_reference_noalt.sh` verifies
+this and refuses to finish if it is not true.
+
+## GRCh38 reference — Broad assembly38 (iteration 1, kept as baseline)
 
 Public GATK hg38 bundle on Google Cloud, the same one used by GATK workflows.
 
@@ -24,7 +54,19 @@ https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo
 > and the local BWA indexes are not the `.64.*` variants either. That omission
 > is the root cause of the MHC sensitivity loss documented in the README: the
 > reference keeps its 261 ALT contigs while BWA has no way to know they are
-> alternates. Fix this before the next alignment run.
+> alternates.
+>
+> **Resolved in iteration 2** by switching to the no-ALT analysis set above,
+> not by adding the `.alt` file. The preflight now refuses to start on a
+> reference that carries `_alt` contigs without an `.alt` file beside it, which
+> is the check that would have caught this at minute zero instead of after the
+> benchmark. To reproduce the defective baseline deliberately:
+>
+> ```bash
+> HG002_REF_NAME=Homo_sapiens_assembly38.fasta \
+> HG002_ALLOW_ALT_WITHOUT_ALT_FILE=1 \
+>   bash run_parabricks_hg002.sh --preflight
+> ```
 
 ```
 https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta.64.amb
