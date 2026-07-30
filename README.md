@@ -45,11 +45,12 @@ and the ploidy of the sex chromosomes.
 ## Results
 
 Hardware: a Lenovo Legion 5 ARH7H laptop — AMD Ryzen 5 6600H, 6 cores and 12
-threads, 32 GB of RAM — driving one RTX 3090 (24 GB) through an external PCIe
-enclosure, with the internal RTX 3060 disabled so that a single GPU is in play.
-Ubuntu 24.04 under WSL2, Parabricks 4.7.0-1.
+threads, 32 GB of RAM — linked to one RTX 3090 (24 GB) via OcuLink through an external PCIe
+dock, with the internal RTX 3060 disabled preventing conflicts.
 
-**The host, not the GPU, is the limiter.** During alignment the GPU sits at
+Software:Ubuntu 24.04 under WSL2, Parabricks 4.7.0-1.
+
+**The CPU, not the GPU, is the limiter.** During alignment the GPU sits at
 73–83 % while the CPU is at 97–99 % and RAM at 88–90 %; `fq2bam` asks for 16
 CPU worker threads on a CPU that has 12. That constraint is the reason for
 `--low-memory`, the 8 GB cap and the separate container per phase.
