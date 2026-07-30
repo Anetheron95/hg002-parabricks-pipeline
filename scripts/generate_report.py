@@ -13,6 +13,7 @@ import csv
 import gzip
 import html
 import json
+import os
 import re
 from collections import Counter
 from datetime import datetime
@@ -210,6 +211,17 @@ def number(value: object, digits: int = 0) -> str:
     if digits:
         return f"{float(value):,.{digits}f}".replace(",", "X").replace(".", ",").replace("X", ".")
     return f"{int(value):,}".replace(",", ".")
+
+
+def reference_label() -> str:
+    """Nome del riferimento usato dalla run, letto dall'ambiente.
+
+    Lo passa run_tools in pipeline_functions.sh. Scriverlo a mano nel report
+    significherebbe dichiarare un riferimento che potrebbe non essere quello
+    con cui le varianti sono state chiamate.
+    """
+    reference = os.environ.get("REFERENCE", "")
+    return Path(reference).name if reference else "non dichiarato"
 
 
 def bar_chart(items: list[tuple[str, float]], maximum: float | None = None, suffix: str = "") -> str:
@@ -432,7 +444,7 @@ def generate_report(args: argparse.Namespace) -> None:
     <title>Report {html.escape(prefix)}</title><style>{css}</style></head><body><main>
     <p class="subtitle">HG002 · {html.escape(mode_label)} · NVIDIA Parabricks</p>
     <h1>Report automatico della pipeline germinale</h1>
-    <p>Generato il {datetime.now().strftime("%d/%m/%Y alle %H:%M")}. Reference GRCh38/assembly38.</p>
+    <p>Generato il {datetime.now().strftime("%d/%m/%Y alle %H:%M")}. Riferimento: {html.escape(reference_label())}.</p>
     <div class="verdict {'warning' if ann_errors else ''}">ESITO TECNICO: {status}. Benchmark GIAB escluso per scelta progettuale.</div>
     <div class="cards">{card_html}</div>
 

@@ -45,8 +45,26 @@ done
 # -----------------------------------------------------------------------------
 
 SAMPLE="HG002"
-REFERENCE="/project/ref/Homo_sapiens_assembly38.fasta"
-KNOWN_SITES="/project/ref/Homo_sapiens_assembly38.dbsnp138.vcf.gz"
+
+# Riferimento dell'iterazione 2: GRCh38 senza contig ALT, con i decoy.
+# Quello dell'iterazione 1 conteneva 261 contig _alt senza il file .alt accanto,
+# e questo e' costato il 98,51 % degli SNP veri nell'MHC di chr6.
+# Si scarica con: bash scripts/fetch_reference_noalt.sh
+#
+# Per tornare al riferimento vecchio, senza modificare lo script:
+#   HG002_REF_NAME=Homo_sapiens_assembly38.fasta \
+#   HG002_ALLOW_ALT_WITHOUT_ALT_FILE=1 bash run_parabricks_hg002.sh --preflight
+REF_NAME="${HG002_REF_NAME:-GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna}"
+KNOWN_SITES_NAME="Homo_sapiens_assembly38.dbsnp138.vcf.gz"
+
+# Due nomi per lo stesso file: il percorso host serve ai controlli e al calcolo
+# della chiave di provenance, quello container ai comandi pbrun e gatk.
+REFERENCE_HOST="${PROJECT_DIR}/ref/${REF_NAME}"
+REFERENCE_DICT_HOST="${PROJECT_DIR}/ref/${REF_NAME%.*}.dict"
+KNOWN_SITES_HOST="${PROJECT_DIR}/ref/${KNOWN_SITES_NAME}"
+REFERENCE="/project/ref/${REF_NAME}"
+REFERENCE_DICT="/project/ref/${REF_NAME%.*}.dict"
+KNOWN_SITES="/project/ref/${KNOWN_SITES_NAME}"
 
 # Read group ricavato dall'header NovaSeq:
 # flowcell HV3C3DSXX, lane 2, indici AGCGATAG+AGGCGAAG.
@@ -57,7 +75,7 @@ PB_IMAGE="nvcr.io/nvidia/clara/clara-parabricks:4.7.0-1"
 TOOLS_IMAGE="bioinfo-codeserver:latest"
 
 if [[ "$MODE" == "smoke" ]]; then
-    PREFIX="HG002_NovaSeq_smoke_test"
+    BASE_PREFIX="HG002_NovaSeq_smoke_test"
     FASTQ_R1_HOST="${PROJECT_DIR}/smoke/HG002_NovaSeq_smoke_R1.fastq.gz"
     FASTQ_R2_HOST="${PROJECT_DIR}/smoke/HG002_NovaSeq_smoke_R2.fastq.gz"
     FASTQ_R1_CONTAINER="/project/smoke/HG002_NovaSeq_smoke_R1.fastq.gz"
@@ -65,11 +83,11 @@ if [[ "$MODE" == "smoke" ]]; then
     EXPECTED_R1_BYTES="75559067"
     EXPECTED_R2_BYTES="77823079"
     EXPECTED_PAIRS="1000000"
-    WORK_VOLUME="hg002_smoke_work_v1"
-    TMP_VOLUME="hg002_smoke_tmp_v1"
+    BASE_WORK_VOLUME="hg002_smoke_work"
+    BASE_TMP_VOLUME="hg002_smoke_tmp"
     INTERVAL_ARGS=(-L "chr20:1-1000000")
 else
-    PREFIX="HG002_NovaSeq_40x"
+    BASE_PREFIX="HG002_NovaSeq_40x"
     FASTQ_R1_HOST="${PROJECT_DIR}/HG002.novaseq.pcr-free.40x.R1.fastq.gz"
     FASTQ_R2_HOST="${PROJECT_DIR}/HG002.novaseq.pcr-free.40x.R2.fastq.gz"
     FASTQ_R1_CONTAINER="/project/HG002.novaseq.pcr-free.40x.R1.fastq.gz"
@@ -77,10 +95,31 @@ else
     EXPECTED_R1_BYTES="34156056301"
     EXPECTED_R2_BYTES="35449847992"
     EXPECTED_PAIRS="474384500"
-    WORK_VOLUME="hg002_work_v1"
-    TMP_VOLUME="hg002_tmp_v1"
+    BASE_WORK_VOLUME="hg002_work"
+    BASE_TMP_VOLUME="hg002_tmp"
     INTERVAL_ARGS=()
 fi
+
+
+# -----------------------------------------------------------------------------
+# 1b. Chiave di provenance
+#
+# Prefisso e volumi non sono costanti scritte a mano: derivano da tutto cio' che
+# determina il risultato (immagine del container, riferimento, FASTQ,
+# known-sites, read group, intervalli). Cambiare uno di quegli ingredienti
+# produce nomi nuovi, quindi i checkpoint della run precedente non vengono ne'
+# riutilizzati per sbaglio ne' sovrascritti.
+#
+# Senza questo, cambiare riferimento e rilanciare farebbe ritrovare il BAM
+# vecchio, che passerebbe la validazione: la pipeline riporterebbe PASS
+# restituendo esattamente i risultati che doveva sostituire.
+# -----------------------------------------------------------------------------
+
+require_runtime
+RUN_KEY="$(compute_run_key)"
+PREFIX="${BASE_PREFIX}_${RUN_KEY}"
+WORK_VOLUME="${BASE_WORK_VOLUME}_${RUN_KEY}"
+TMP_VOLUME="${BASE_TMP_VOLUME}_${RUN_KEY}"
 
 
 # -----------------------------------------------------------------------------
@@ -105,9 +144,15 @@ RUN_ID=${RUN_ID}
 MODE=${MODE}
 PREFIX=${PREFIX}
 WORK_VOLUME=${WORK_VOLUME}
+RUN_KEY=${RUN_KEY}
 STARTED=$(date --iso-8601=seconds)
 EOF
 mv -f "${LOG_DIR}/current_run.env.tmp" "${LOG_DIR}/current_run.env"
+
+# Il manifest elenca in chiaro gli ingredienti della chiave. Serve a poter
+# verificare, mesi dopo, da che cosa e' venuto un risultato: un hash da solo
+# dice che qualcosa e' cambiato, non che cosa.
+write_run_manifest "${RUN_DIR}/run_manifest.json"
 
 printf 'Step\tStarted\tEnded\tSeconds\tStatus\n' > "$TIMING_FILE"
 exec 3>&1 4>&2
@@ -126,8 +171,13 @@ on_pipeline_exit() {
 }
 trap on_pipeline_exit EXIT
 
+# Il controllo di integrita dei FASTQ dipende solo dai FASTQ, non dal
+# riferimento: un checkpoint della run precedente resta valido e rifarlo
+# costerebbe ore per nulla. Per questo l'elenco include anche i prefissi
+# senza chiave di provenance.
 VALIDATION_CANDIDATES=(
     "${OUTPUT_DIR}/${PREFIX}.fastq_validation.json"
+    "${OUTPUT_DIR}/${BASE_PREFIX}.fastq_validation.json"
     "${OUTPUT_DIR}/HG002_NovaSeq_${MODE}.fastq_validation.json"
     "${LOG_DIR}/previous_attempts/HG002_NovaSeq_${MODE}.fastq_validation.json"
     "${LOG_DIR}/previous_attempts/HG002_NovaSeq_40x.fastq_validation.json"
@@ -137,6 +187,9 @@ VALIDATION_CANDIDATES=(
 echo "============================================================"
 echo " Pipeline HG002 | modalita: ${MODE}"
 echo " Run: ${RUN_ID}"
+echo " Riferimento: ${REF_NAME}"
+echo " Chiave di provenance: ${RUN_KEY}"
+echo " Prefisso: ${PREFIX}"
 echo "============================================================"
 
 

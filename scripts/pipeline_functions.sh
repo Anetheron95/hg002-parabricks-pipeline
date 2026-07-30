@@ -14,6 +14,93 @@ die() {
     exit 1
 }
 
+
+# -----------------------------------------------------------------------------
+# Provenance dei checkpoint
+#
+# I checkpoint sono indicizzati su PREFIX e WORK_VOLUME. Se quei nomi non
+# dipendono dagli input, cambiare il riferimento e rilanciare la pipeline fa
+# ritrovare il BAM vecchio, che passa la validazione perche' e' strutturalmente
+# sano: l'allineamento viene saltato e la pipeline riporta PASS restituendo
+# esattamente i risultati che doveva sostituire.
+#
+# La chiave calcolata qui lega prefisso e volumi a tutto cio' che determina il
+# risultato. Cambiando un ingrediente si ottengono nomi nuovi: i checkpoint
+# vecchi non vengono piu' trovati e allo stesso tempo non vengono distrutti,
+# quindi la run precedente resta disponibile come baseline.
+# -----------------------------------------------------------------------------
+
+require_runtime() {
+    grep -qi microsoft /proc/version ||
+        die "esegui questo script con Ubuntu WSL2, non con Git Bash."
+    command -v docker >/dev/null || die "Docker non e' disponibile in Ubuntu WSL2."
+    docker info >/dev/null 2>&1 || die "Docker Desktop non risponde."
+    docker image inspect "$PB_IMAGE" >/dev/null 2>&1 ||
+        die "immagine Parabricks non trovata: $PB_IMAGE"
+}
+
+# Una riga per ingrediente, nome e valore separati da tabulazione. La stessa
+# funzione alimenta il calcolo della chiave e il manifest in chiaro: un hash da
+# solo non e' verificabile, serve poter leggere che cosa ci e' entrato.
+#
+# Il .fai e' la scelta centrale: pesa pochi KB e cambia se cambia anche un solo
+# contig del riferimento, quindi identifica il riferimento senza doverne
+# leggere i 3 Gb.
+run_key_ingredients() {
+    printf 'parabricks_image_id\t%s\n' \
+        "$(docker image inspect --format '{{.Id}}' "$PB_IMAGE")"
+    printf 'reference\t%s\n' "$(basename "$REFERENCE_HOST")"
+    printf 'reference_fai_sha256\t%s\n' \
+        "$(sha256sum "${REFERENCE_HOST}.fai" | cut -d' ' -f1)"
+    printf 'known_sites\t%s %s\n' \
+        "$(basename "$KNOWN_SITES_HOST")" "$(stat -c '%s' "$KNOWN_SITES_HOST")"
+    printf 'fastq_r1\t%s %s\n' \
+        "$(basename "$FASTQ_R1_HOST")" "$(stat -c '%s' "$FASTQ_R1_HOST")"
+    printf 'fastq_r2\t%s %s\n' \
+        "$(basename "$FASTQ_R2_HOST")" "$(stat -c '%s' "$FASTQ_R2_HOST")"
+    printf 'read_group\t%s\n' "$READ_GROUP"
+    printf 'intervals\t%s\n' "${INTERVAL_ARGS[*]:-nessuno}"
+}
+
+compute_run_key() {
+    local f
+    for f in "$REFERENCE_HOST" "${REFERENCE_HOST}.fai" \
+             "$KNOWN_SITES_HOST" "$FASTQ_R1_HOST" "$FASTQ_R2_HOST"; do
+        [[ -s "$f" ]] || die "manca un file necessario a identificare la run: $f
+   Se e' il riferimento, scaricalo con: bash scripts/fetch_reference_noalt.sh"
+    done
+    run_key_ingredients | sha256sum | cut -c1-8
+}
+
+json_escape() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    printf '%s' "$s"
+}
+
+write_run_manifest() {
+    local path="$1"
+    local first=1 key value
+    {
+        printf '{\n'
+        printf '  "run_id": "%s",\n'      "$(json_escape "$RUN_ID")"
+        printf '  "mode": "%s",\n'        "$(json_escape "$MODE")"
+        printf '  "run_key": "%s",\n'     "$(json_escape "$RUN_KEY")"
+        printf '  "prefix": "%s",\n'      "$(json_escape "$PREFIX")"
+        printf '  "work_volume": "%s",\n' "$(json_escape "$WORK_VOLUME")"
+        printf '  "ingredients": {\n'
+        while IFS=$'\t' read -r key value; do
+            [[ -n "$key" ]] || continue
+            (( first )) || printf ',\n'
+            first=0
+            printf '    "%s": "%s"' "$(json_escape "$key")" "$(json_escape "$value")"
+        done < <(run_key_ingredients)
+        printf '\n  }\n}\n'
+    } > "${path}.tmp"
+    mv -f "${path}.tmp" "$path"
+}
+
 write_state() {
     local key="$1"
     local label="$2"
@@ -102,12 +189,17 @@ run_parabricks() {
         "$PB_IMAGE" "$@"
 }
 
+# postprocess.sh e generate_report.py ricevono il riferimento dall'ambiente e
+# non lo scrivono al proprio interno: cambiarlo in un punto solo basta per tutta
+# la pipeline.
 run_tools() {
     local container_name="$1"
     shift
     remove_stopped_container "$container_name"
     docker run --rm \
         --name "$container_name" \
+        --env "REFERENCE=${REFERENCE}" \
+        --env "REFERENCE_DICT=${REFERENCE_DICT}" \
         --mount "type=bind,source=${PROJECT_DIR},target=/project,readonly" \
         --mount "type=volume,source=${WORK_VOLUME},target=/work" \
         --mount "type=volume,source=${TMP_VOLUME},target=/pbtmp" \
@@ -116,6 +208,8 @@ run_tools() {
 
 tools_quiet() {
     docker run --rm \
+        --env "REFERENCE=${REFERENCE}" \
+        --env "REFERENCE_DICT=${REFERENCE_DICT}" \
         --mount "type=bind,source=${PROJECT_DIR},target=/project,readonly" \
         --mount "type=volume,source=${WORK_VOLUME},target=/work" \
         --mount "type=volume,source=${TMP_VOLUME},target=/pbtmp" \
@@ -227,27 +321,69 @@ ensure_fastq_integrity() {
     valid_fastq_json || die "il controllo FASTQ non ha prodotto un checkpoint valido."
 }
 
+# Controllo che nell'iterazione 1 mancava, e che sarebbe costato zero secondi.
+#
+# Un riferimento con contig _alt ma senza il file .alt accanto porta BWA a
+# trattare ALT e locus primario come multi-mapping ordinario: MAPQ 0, e
+# HaplotypeCaller scarta quelle read sotto MAPQ 20. Nella prima iterazione il
+# difetto e' emerso solo dopo il benchmark, dieci ore dopo, ed e' costato il
+# 98,51 % degli SNP veri nell'MHC di chr6.
+#
+# Per riprodurre deliberatamente la baseline difettosa:
+#   HG002_ALLOW_ALT_WITHOUT_ALT_FILE=1 HG002_REF_NAME=Homo_sapiens_assembly38.fasta ...
+check_reference_alt_contigs() {
+    local totale n_alt
+    totale="$(wc -l < "${REFERENCE_HOST}.fai")"
+    n_alt="$(cut -f1 "${REFERENCE_HOST}.fai" | grep -c '_alt$' || true)"
+
+    printf 'Riferimento: %s\n' "$(basename "$REFERENCE_HOST")"
+    printf '  contig totali: %s | contig _alt: %s\n' "$totale" "$n_alt"
+
+    if (( n_alt == 0 )); then
+        echo "  nessun contig _alt: allineamento alt-aware non necessario."
+        return 0
+    fi
+    if [[ -s "${REFERENCE_HOST}.alt" ]]; then
+        echo "  file .alt presente: BWA puo' lavorare alt-aware."
+        return 0
+    fi
+    if [[ "${HG002_ALLOW_ALT_WITHOUT_ALT_FILE:-0}" == "1" ]]; then
+        printf '  ATTENZIONE: %s contig _alt senza file .alt. Proseguo perche\047 richiesto\n' "$n_alt"
+        printf '  esplicitamente: le read ambigue avranno MAPQ 0 e le varianti\n'
+        printf '  sottostanti non verranno chiamate.\n'
+        return 0
+    fi
+    die "il riferimento contiene ${n_alt} contig _alt ma manca $(basename "$REFERENCE_HOST").alt.
+   Senza quel file BWA assegna MAPQ 0 alle read che mappano sia sul locus
+   primario sia su un contig alternativo, e HaplotypeCaller le scarta: nella
+   prima iterazione questo e' costato il 98,51 % degli SNP nell'MHC di chr6.
+   Soluzione: usa un riferimento no-ALT (bash scripts/fetch_reference_noalt.sh)
+   oppure procurati il file .alt.
+   Per riprodurre volutamente la baseline difettosa, riesegui con
+   HG002_ALLOW_ALT_WITHOUT_ALT_FILE=1."
+}
+
 preflight() {
     say "Controlli preliminari"
 
-    grep -qi microsoft /proc/version ||
-        die "esegui questo script con Ubuntu WSL2, non con Git Bash."
-    command -v docker >/dev/null || die "Docker non e' disponibile in Ubuntu WSL2."
+    require_runtime
     command -v nvidia-smi >/dev/null || die "nvidia-smi non e' disponibile in Ubuntu WSL2."
 
+    # L'elenco e' derivato da REFERENCE_HOST: cambiare riferimento non richiede
+    # di aggiornare a mano dieci percorsi.
     local required=(
         "$FASTQ_R1_HOST"
         "$FASTQ_R2_HOST"
-        "$PROJECT_DIR/ref/Homo_sapiens_assembly38.fasta"
-        "$PROJECT_DIR/ref/Homo_sapiens_assembly38.fasta.fai"
-        "$PROJECT_DIR/ref/Homo_sapiens_assembly38.dict"
-        "$PROJECT_DIR/ref/Homo_sapiens_assembly38.fasta.amb"
-        "$PROJECT_DIR/ref/Homo_sapiens_assembly38.fasta.ann"
-        "$PROJECT_DIR/ref/Homo_sapiens_assembly38.fasta.bwt"
-        "$PROJECT_DIR/ref/Homo_sapiens_assembly38.fasta.pac"
-        "$PROJECT_DIR/ref/Homo_sapiens_assembly38.fasta.sa"
-        "$PROJECT_DIR/ref/Homo_sapiens_assembly38.dbsnp138.vcf.gz"
-        "$PROJECT_DIR/ref/Homo_sapiens_assembly38.dbsnp138.vcf.gz.tbi"
+        "$REFERENCE_HOST"
+        "${REFERENCE_HOST}.fai"
+        "$REFERENCE_DICT_HOST"
+        "${REFERENCE_HOST}.amb"
+        "${REFERENCE_HOST}.ann"
+        "${REFERENCE_HOST}.bwt"
+        "${REFERENCE_HOST}.pac"
+        "${REFERENCE_HOST}.sa"
+        "$KNOWN_SITES_HOST"
+        "${KNOWN_SITES_HOST}.tbi"
         "$PROJECT_DIR/snpEff_data/hg38/snpEffectPredictor.bin"
         "$PROJECT_DIR/scripts/postprocess.sh"
         "$PROJECT_DIR/scripts/generate_report.py"
@@ -257,9 +393,8 @@ preflight() {
         [[ -s "$file" ]] || die "file obbligatorio mancante o vuoto: $file"
     done
 
-    docker info >/dev/null || die "Docker Desktop non risponde."
-    docker image inspect "$PB_IMAGE" >/dev/null ||
-        die "immagine Parabricks non trovata: $PB_IMAGE"
+    check_reference_alt_contigs
+
     docker image inspect "$TOOLS_IMAGE" >/dev/null ||
         die "immagine bioinformatica non trovata: $TOOLS_IMAGE"
     docker image inspect alpine:3.20 >/dev/null ||
@@ -296,6 +431,7 @@ preflight() {
     printf 'Spazio libero Windows: %.1f GiB\n' "$(awk -v k="$host_free_kb" 'BEGIN{print k/1024/1024}')"
     printf 'Modalita: %s | Campione: %s | Volume risultati: %s\n' \
         "$MODE" "$SAMPLE" "$WORK_VOLUME"
+    printf 'Chiave di provenance: %s | Prefisso: %s\n' "$RUN_KEY" "$PREFIX"
 }
 
 finalize_bam() {
@@ -400,6 +536,7 @@ generate_report() {
     docker run --rm \
         --name "hg002_9_report" \
         --entrypoint python3 \
+        --env "REFERENCE=${REFERENCE}" \
         --mount "type=bind,source=${PROJECT_DIR},target=/project,readonly" \
         --mount "type=bind,source=${OUTPUT_DIR},target=/project/output" \
         --mount "type=bind,source=${REPORT_DIR},target=/project/reports" \
