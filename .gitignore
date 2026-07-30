@@ -36,11 +36,12 @@ reports/giab/*/*
 !reports/giab/*/giab_benchmark.json
 !reports/giab/*/happy.summary.csv
 
-# Log delle nuove run (i log storici in logs/ restano selezionabili a mano)
-logs/runs/
-logs/current_run.env
-logs/current_step.env
-logs/pipeline.lock
+# I log restano in locale e non vengono versionati. Erano tracciati fino a
+# luglio 2026 e pesavano il 70 % del repo, per giunta con i file sbagliati: i
+# log conservati erano quelli dei tentativi superati del 24-25 luglio, mentre
+# quelli delle run pubblicate non erano tracciati affatto. Le prove di
+# accuratezza stanno in reports/giab/, non qui.
+logs/
 
 # Binary documents: the useful content now lives in docs/data-sources.md
 *.docx
