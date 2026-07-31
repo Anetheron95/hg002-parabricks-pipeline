@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Funzioni tecniche usate da run_hg002.sh.
-# Lo studente puo' concentrarsi sul file principale: qui sono raccolti Docker,
-# checkpoint, log ed esportazione sicura.
+# Technical functions used by run_parabricks_hg002.sh.
+# The main file can then be read on its own: Docker, checkpoints, logging and
+# safe export all live here.
 
 set -Eeuo pipefail
 
@@ -10,42 +10,47 @@ say() {
 }
 
 die() {
-    printf '\nERRORE: %s\n' "$*" >&2
+    printf '\nERROR: %s\n' "$*" >&2
     exit 1
 }
 
 
 # -----------------------------------------------------------------------------
-# Provenance dei checkpoint
+# Checkpoint provenance
 #
-# I checkpoint sono indicizzati su PREFIX e WORK_VOLUME. Se quei nomi non
-# dipendono dagli input, cambiare il riferimento e rilanciare la pipeline fa
-# ritrovare il BAM vecchio, che passa la validazione perche' e' strutturalmente
-# sano: l'allineamento viene saltato e la pipeline riporta PASS restituendo
-# esattamente i risultati che doveva sostituire.
+# Checkpoints are indexed on PREFIX and WORK_VOLUME. If those names do not depend
+# on the inputs, changing the reference and re-launching the pipeline finds the
+# old BAM again, which passes validation because it is structurally sound:
+# alignment gets skipped and the pipeline reports PASS while returning exactly
+# the results it was supposed to replace.
 #
-# La chiave calcolata qui lega prefisso e volumi a tutto cio' che determina il
-# risultato. Cambiando un ingrediente si ottengono nomi nuovi: i checkpoint
-# vecchi non vengono piu' trovati e allo stesso tempo non vengono distrutti,
-# quindi la run precedente resta disponibile come baseline.
+# The key computed here ties prefix and volumes to everything that determines the
+# result. Change one ingredient and you get new names: the old checkpoints are no
+# longer found and at the same time are not destroyed, so the previous run stays
+# available as a baseline.
 # -----------------------------------------------------------------------------
 
 require_runtime() {
     grep -qi microsoft /proc/version ||
-        die "esegui questo script con Ubuntu WSL2, non con Git Bash."
-    command -v docker >/dev/null || die "Docker non e' disponibile in Ubuntu WSL2."
-    docker info >/dev/null 2>&1 || die "Docker Desktop non risponde."
+        die "run this script under Ubuntu WSL2, not under Git Bash."
+    command -v docker >/dev/null || die "Docker is not available in Ubuntu WSL2."
+    docker info >/dev/null 2>&1 || die "Docker Desktop is not responding."
     docker image inspect "$PB_IMAGE" >/dev/null 2>&1 ||
-        die "immagine Parabricks non trovata: $PB_IMAGE"
+        die "Parabricks image not found: $PB_IMAGE"
 }
 
-# Una riga per ingrediente, nome e valore separati da tabulazione. La stessa
-# funzione alimenta il calcolo della chiave e il manifest in chiaro: un hash da
-# solo non e' verificabile, serve poter leggere che cosa ci e' entrato.
+# One line per ingredient, name and value separated by a tab. The same function
+# feeds both the key computation and the plain-text manifest: a hash on its own
+# is not verifiable, you need to be able to read what went into it.
 #
-# Il .fai e' la scelta centrale: pesa pochi KB e cambia se cambia anche un solo
-# contig del riferimento, quindi identifica il riferimento senza doverne
-# leggere i 3 Gb.
+# The .fai is the central choice: it weighs a few kB and changes if even a single
+# contig of the reference changes, so it identifies the reference without having
+# to read its 3 Gb.
+#
+# WARNING: every literal below is hashed. The Italian fallback 'nessuno' stays as
+# it is on purpose — translating it would change the key of every run without
+# intervals, which is how the published run 53007e55 and its 92 GB volume are
+# addressed. The manifest has to keep saying what was actually hashed.
 run_key_ingredients() {
     printf 'parabricks_image_id\t%s\n' \
         "$(docker image inspect --format '{{.Id}}' "$PB_IMAGE")"
@@ -66,8 +71,8 @@ compute_run_key() {
     local f
     for f in "$REFERENCE_HOST" "${REFERENCE_HOST}.fai" \
              "$KNOWN_SITES_HOST" "$FASTQ_R1_HOST" "$FASTQ_R2_HOST"; do
-        [[ -s "$f" ]] || die "manca un file necessario a identificare la run: $f
-   Se e' il riferimento, scaricalo con: bash scripts/fetch_reference_noalt.sh"
+        [[ -s "$f" ]] || die "a file needed to identify the run is missing: $f
+   If it is the reference, download it with: bash scripts/fetch_reference_noalt.sh"
     done
     run_key_ingredients | sha256sum | cut -c1-8
 }
@@ -126,7 +131,7 @@ skip_step() {
     local label="$2"
     local now
     now="$(date --iso-8601=seconds)"
-    printf '[OK] %s: checkpoint gia valido, passo oltre.\n' "$label"
+    printf '[OK] %s: checkpoint already valid, moving on.\n' "$label"
     record_timing "$key" "$now" "$now" "0" "SKIPPED_VALID"
 }
 
@@ -154,13 +159,13 @@ run_step() {
     if [[ "$rc" -eq 0 ]]; then
         record_timing "$key" "$started" "$ended" "$((end_epoch - start_epoch))" "PASS"
         write_state "$key" "$label" "PASS" "$started"
-        printf '[OK] %s completato.\n' "$label"
+        printf '[OK] %s complete.\n' "$label"
         return 0
     fi
 
     record_timing "$key" "$started" "$ended" "$((end_epoch - start_epoch))" "FAILED"
     write_state "$key" "$label" "FAILED" "$started"
-    printf '[ERRORE] %s fallito (codice %s). Log: %s\n' "$label" "$rc" "$log_file" >&2
+    printf '[ERROR] %s failed (code %s). Log: %s\n' "$label" "$rc" "$log_file" >&2
     return "$rc"
 }
 
@@ -169,7 +174,7 @@ remove_stopped_container() {
     local running
     running="$(docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null || true)"
     if [[ "$running" == "true" ]]; then
-        die "il container ${name} e' gia attivo. Non avvio un secondo processo sugli stessi file."
+        die "container ${name} is already running. I will not start a second process on the same files."
     fi
     if [[ "$running" == "false" ]]; then
         docker rm "$name" >/dev/null
@@ -189,9 +194,9 @@ run_parabricks() {
         "$PB_IMAGE" "$@"
 }
 
-# postprocess.sh e generate_report.py ricevono il riferimento dall'ambiente e
-# non lo scrivono al proprio interno: cambiarlo in un punto solo basta per tutta
-# la pipeline.
+# postprocess.sh and generate_report.py receive the reference from the
+# environment instead of writing it inside themselves: changing it in one place
+# is enough for the whole pipeline.
 run_tools() {
     local container_name="$1"
     shift
@@ -291,7 +296,7 @@ copy_validation_checkpoint() {
             --mount "type=volume,source=${WORK_VOLUME},target=/work" \
             alpine:3.20 cp "/project/${relative}" "/work/${PREFIX}.fastq_validation.json"
         if valid_fastq_json; then
-            printf 'Riutilizzo il controllo completo gia superato: %s\n' "$relative"
+            printf 'Reusing the full check that already passed: %s\n' "$relative"
             return 0
         fi
         work_remove "/work/${PREFIX}.fastq_validation.json"
@@ -301,76 +306,76 @@ copy_validation_checkpoint() {
 
 ensure_fastq_integrity() {
     if valid_fastq_json; then
-        skip_step "1_fastq_integrity" "1/9 - Integrita FASTQ e pairing"
+        skip_step "1_fastq_integrity" "1/9 - FASTQ integrity and pairing"
         return
     fi
 
     if [[ "$(stat -c '%s' "$FASTQ_R1_HOST")" == "$EXPECTED_R1_BYTES" ]] &&
        [[ "$(stat -c '%s' "$FASTQ_R2_HOST")" == "$EXPECTED_R2_BYTES" ]] &&
        copy_validation_checkpoint; then
-        skip_step "1_fastq_integrity" "1/9 - Integrita FASTQ e pairing"
+        skip_step "1_fastq_integrity" "1/9 - FASTQ integrity and pairing"
         return
     fi
 
     work_remove "/work/${PREFIX}.fastq_validation.json"
-    run_step "1_fastq_integrity" "1/9 - Integrita FASTQ e pairing" \
+    run_step "1_fastq_integrity" "1/9 - FASTQ integrity and pairing" \
         run_tools "hg002_1_fastq_integrity" \
         bash /project/scripts/postprocess.sh integrity \
         "$PREFIX" "$FASTQ_R1_CONTAINER" "$FASTQ_R2_CONTAINER"
 
-    valid_fastq_json || die "il controllo FASTQ non ha prodotto un checkpoint valido."
+    valid_fastq_json || die "the FASTQ check did not produce a valid checkpoint."
 }
 
-# Controllo che nell'iterazione 1 mancava, e che sarebbe costato zero secondi.
+# The check iteration 1 lacked, and which would have cost zero seconds.
 #
-# Un riferimento con contig _alt ma senza il file .alt accanto porta BWA a
-# trattare ALT e locus primario come multi-mapping ordinario: MAPQ 0, e
-# HaplotypeCaller scarta quelle read sotto MAPQ 20. Nella prima iterazione il
-# difetto e' emerso solo dopo il benchmark, dieci ore dopo, ed e' costato il
-# 98,51 % degli SNP veri nell'MHC di chr6.
+# A reference with _alt contigs but without the .alt file beside it makes BWA
+# treat ALT and primary locus as ordinary multi-mapping: MAPQ 0, and
+# HaplotypeCaller discards those reads below MAPQ 20. In the first iteration the
+# defect only surfaced after the benchmark, ten hours later, and it cost 98.51 %
+# of the true SNPs in the MHC of chr6.
 #
-# Per riprodurre deliberatamente la baseline difettosa:
+# To reproduce the defective baseline deliberately:
 #   HG002_ALLOW_ALT_WITHOUT_ALT_FILE=1 HG002_REF_NAME=Homo_sapiens_assembly38.fasta ...
 check_reference_alt_contigs() {
-    local totale n_alt
-    totale="$(wc -l < "${REFERENCE_HOST}.fai")"
+    local total n_alt
+    total="$(wc -l < "${REFERENCE_HOST}.fai")"
     n_alt="$(cut -f1 "${REFERENCE_HOST}.fai" | grep -c '_alt$' || true)"
 
-    printf 'Riferimento: %s\n' "$(basename "$REFERENCE_HOST")"
-    printf '  contig totali: %s | contig _alt: %s\n' "$totale" "$n_alt"
+    printf 'Reference: %s\n' "$(basename "$REFERENCE_HOST")"
+    printf '  total contigs: %s | _alt contigs: %s\n' "$total" "$n_alt"
 
     if (( n_alt == 0 )); then
-        echo "  nessun contig _alt: allineamento alt-aware non necessario."
+        echo "  no _alt contigs: alt-aware alignment is not needed."
         return 0
     fi
     if [[ -s "${REFERENCE_HOST}.alt" ]]; then
-        echo "  file .alt presente: BWA puo' lavorare alt-aware."
+        echo "  .alt file present: BWA can work alt-aware."
         return 0
     fi
     if [[ "${HG002_ALLOW_ALT_WITHOUT_ALT_FILE:-0}" == "1" ]]; then
-        printf '  ATTENZIONE: %s contig _alt senza file .alt. Proseguo perche\047 richiesto\n' "$n_alt"
-        printf '  esplicitamente: le read ambigue avranno MAPQ 0 e le varianti\n'
-        printf '  sottostanti non verranno chiamate.\n'
+        printf '  WARNING: %s _alt contigs without an .alt file. Continuing because it was\n' "$n_alt"
+        printf '  requested explicitly: ambiguous reads will get MAPQ 0 and the variants\n'
+        printf '  underneath will not be called.\n'
         return 0
     fi
-    die "il riferimento contiene ${n_alt} contig _alt ma manca $(basename "$REFERENCE_HOST").alt.
-   Senza quel file BWA assegna MAPQ 0 alle read che mappano sia sul locus
-   primario sia su un contig alternativo, e HaplotypeCaller le scarta: nella
-   prima iterazione questo e' costato il 98,51 % degli SNP nell'MHC di chr6.
-   Soluzione: usa un riferimento no-ALT (bash scripts/fetch_reference_noalt.sh)
-   oppure procurati il file .alt.
-   Per riprodurre volutamente la baseline difettosa, riesegui con
+    die "the reference contains ${n_alt} _alt contigs but $(basename "$REFERENCE_HOST").alt is missing.
+   Without that file BWA assigns MAPQ 0 to reads mapping both to the primary
+   locus and to an alternate contig, and HaplotypeCaller discards them: in the
+   first iteration that cost 98.51 % of the SNPs in the MHC of chr6.
+   Fix: use a no-ALT reference (bash scripts/fetch_reference_noalt.sh) or obtain
+   the .alt file.
+   To reproduce the defective baseline on purpose, re-run with
    HG002_ALLOW_ALT_WITHOUT_ALT_FILE=1."
 }
 
 preflight() {
-    say "Controlli preliminari"
+    say "Preflight checks"
 
     require_runtime
-    command -v nvidia-smi >/dev/null || die "nvidia-smi non e' disponibile in Ubuntu WSL2."
+    command -v nvidia-smi >/dev/null || die "nvidia-smi is not available in Ubuntu WSL2."
 
-    # L'elenco e' derivato da REFERENCE_HOST: cambiare riferimento non richiede
-    # di aggiornare a mano dieci percorsi.
+    # The list is derived from REFERENCE_HOST: changing reference does not mean
+    # updating ten paths by hand.
     local required=(
         "$FASTQ_R1_HOST"
         "$FASTQ_R2_HOST"
@@ -390,15 +395,15 @@ preflight() {
     )
     local file
     for file in "${required[@]}"; do
-        [[ -s "$file" ]] || die "file obbligatorio mancante o vuoto: $file"
+        [[ -s "$file" ]] || die "required file missing or empty: $file"
     done
 
     check_reference_alt_contigs
 
     docker image inspect "$TOOLS_IMAGE" >/dev/null ||
-        die "immagine bioinformatica non trovata: $TOOLS_IMAGE"
+        die "bioinformatics image not found: $TOOLS_IMAGE"
     docker image inspect alpine:3.20 >/dev/null ||
-        die "immagine di servizio alpine:3.20 non trovata."
+        die "utility image alpine:3.20 not found."
 
     nvidia-smi --query-gpu=name,memory.total --format=csv,noheader |
         sed 's/^/GPU: /'
@@ -423,15 +428,15 @@ preflight() {
     fi
 
     (( docker_free_kb >= docker_min_kb )) ||
-        die "spazio insufficiente nel disco Linux di Docker."
+        die "not enough space on Docker's Linux disk."
     (( host_free_kb >= host_min_kb )) ||
-        die "spazio insufficiente sul disco Windows per esportare i risultati."
+        die "not enough space on the Windows disk to export the results."
 
-    printf 'Spazio libero Docker: %.1f GiB\n' "$(awk -v k="$docker_free_kb" 'BEGIN{print k/1024/1024}')"
-    printf 'Spazio libero Windows: %.1f GiB\n' "$(awk -v k="$host_free_kb" 'BEGIN{print k/1024/1024}')"
-    printf 'Modalita: %s | Campione: %s | Volume risultati: %s\n' \
+    printf 'Free space, Docker: %.1f GiB\n' "$(awk -v k="$docker_free_kb" 'BEGIN{print k/1024/1024}')"
+    printf 'Free space, Windows: %.1f GiB\n' "$(awk -v k="$host_free_kb" 'BEGIN{print k/1024/1024}')"
+    printf 'Mode: %s | Sample: %s | Results volume: %s\n' \
         "$MODE" "$SAMPLE" "$WORK_VOLUME"
-    printf 'Chiave di provenance: %s | Prefisso: %s\n' "$RUN_KEY" "$PREFIX"
+    printf 'Provenance key: %s | Prefix: %s\n' "$RUN_KEY" "$PREFIX"
 }
 
 finalize_bam() {
@@ -551,7 +556,7 @@ generate_report() {
 pipeline_failed() {
     local rc="$1"
     local line="$2"
-    printf '\nPipeline interrotta alla riga %s (codice %s).\n' "$line" "$rc" >&2
-    printf 'I risultati gia validati restano nel volume %s e verranno riutilizzati.\n' \
+    printf '\nPipeline aborted at line %s (code %s).\n' "$line" "$rc" >&2
+    printf 'The results already validated stay in volume %s and will be reused.\n' \
         "$WORK_VOLUME" >&2
 }

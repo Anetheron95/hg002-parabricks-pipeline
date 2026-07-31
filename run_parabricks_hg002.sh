@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Pipeline germinale HG002 - versione didattica
+# HG002 germline pipeline
 #
-# Si legge dall'alto verso il basso:
-#   1. controlla i FASTQ
-#   2. crea e controlla il BAM
-#   3. calcola BQSR e chiama le varianti
-#   4. filtra e annota il VCF
-#   5. produce QC, esportazione e report
+# It reads top to bottom:
+#   1. check the FASTQ files
+#   2. build and check the BAM
+#   3. compute BQSR and call the variants
+#   4. filter and annotate the VCF
+#   5. produce QC, export and report
 # =============================================================================
 
 set -Eeuo pipefail
@@ -17,7 +17,7 @@ source "${PROJECT_DIR}/scripts/pipeline_functions.sh"
 
 
 # -----------------------------------------------------------------------------
-# 0. Modalita di esecuzione
+# 0. Run mode
 # -----------------------------------------------------------------------------
 
 MODE="full"
@@ -28,37 +28,37 @@ while [[ $# -gt 0 ]]; do
         --smoke)     MODE="smoke" ;;
         --preflight) PREFLIGHT_ONLY="true" ;;
         --help|-h)
-            echo "Uso:"
-            echo "  ./run_parabricks_hg002.sh              # analisi completa 40x"
-            echo "  ./run_parabricks_hg002.sh --smoke      # collaudo piccolo"
-            echo "  ./run_parabricks_hg002.sh --preflight  # soli controlli"
+            echo "Usage:"
+            echo "  ./run_parabricks_hg002.sh              # full 40x analysis"
+            echo "  ./run_parabricks_hg002.sh --smoke      # small end-to-end trial"
+            echo "  ./run_parabricks_hg002.sh --preflight  # checks only"
             exit 0
             ;;
-        *) die "opzione sconosciuta: $1" ;;
+        *) die "unknown option: $1" ;;
     esac
     shift
 done
 
 
 # -----------------------------------------------------------------------------
-# 1. Dati del progetto
+# 1. Project data
 # -----------------------------------------------------------------------------
 
 SAMPLE="HG002"
 
-# Riferimento dell'iterazione 2: GRCh38 senza contig ALT, con i decoy.
-# Quello dell'iterazione 1 conteneva 261 contig _alt senza il file .alt accanto,
-# e questo e' costato il 98,51 % degli SNP veri nell'MHC di chr6.
-# Si scarica con: bash scripts/fetch_reference_noalt.sh
+# Reference of iteration 2: GRCh38 without ALT contigs, decoys kept.
+# The one used in iteration 1 carried 261 _alt contigs without the .alt file
+# beside them, and that cost 98.51 % of the true SNPs in the MHC of chr6.
+# Download it with: bash scripts/fetch_reference_noalt.sh
 #
-# Per tornare al riferimento vecchio, senza modificare lo script:
+# To go back to the old reference without editing this script:
 #   HG002_REF_NAME=Homo_sapiens_assembly38.fasta \
 #   HG002_ALLOW_ALT_WITHOUT_ALT_FILE=1 bash run_parabricks_hg002.sh --preflight
 REF_NAME="${HG002_REF_NAME:-GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna}"
 KNOWN_SITES_NAME="Homo_sapiens_assembly38.dbsnp138.vcf.gz"
 
-# Due nomi per lo stesso file: il percorso host serve ai controlli e al calcolo
-# della chiave di provenance, quello container ai comandi pbrun e gatk.
+# Two names for the same file: the host path is what the checks and the
+# provenance key use, the container path is what pbrun and gatk get.
 REFERENCE_HOST="${PROJECT_DIR}/ref/${REF_NAME}"
 REFERENCE_DICT_HOST="${PROJECT_DIR}/ref/${REF_NAME%.*}.dict"
 KNOWN_SITES_HOST="${PROJECT_DIR}/ref/${KNOWN_SITES_NAME}"
@@ -66,8 +66,8 @@ REFERENCE="/project/ref/${REF_NAME}"
 REFERENCE_DICT="/project/ref/${REF_NAME%.*}.dict"
 KNOWN_SITES="/project/ref/${KNOWN_SITES_NAME}"
 
-# Read group ricavato dall'header NovaSeq:
-# flowcell HV3C3DSXX, lane 2, indici AGCGATAG+AGGCGAAG.
+# Read group taken from the NovaSeq header:
+# flowcell HV3C3DSXX, lane 2, indexes AGCGATAG+AGGCGAAG.
 READ_GROUP_PU="HV3C3DSXX.2.AGCGATAG+AGGCGAAG"
 READ_GROUP='@RG\tID:HV3C3DSXX.2\tPL:ILLUMINA\tPM:NovaSeq6000\tLB:HG002_PCR_FREE\tPU:HV3C3DSXX.2.AGCGATAG+AGGCGAAG\tSM:HG002'
 
@@ -102,17 +102,17 @@ fi
 
 
 # -----------------------------------------------------------------------------
-# 1b. Chiave di provenance
+# 1b. Provenance key
 #
-# Prefisso e volumi non sono costanti scritte a mano: derivano da tutto cio' che
-# determina il risultato (immagine del container, riferimento, FASTQ,
-# known-sites, read group, intervalli). Cambiare uno di quegli ingredienti
-# produce nomi nuovi, quindi i checkpoint della run precedente non vengono ne'
-# riutilizzati per sbaglio ne' sovrascritti.
+# Prefix and volumes are not hand-written constants: they derive from everything
+# that determines the result (container image, reference, FASTQ files,
+# known-sites, read group, intervals). Changing one of those ingredients
+# produces new names, so the checkpoints of the previous run are neither reused
+# by mistake nor overwritten.
 #
-# Senza questo, cambiare riferimento e rilanciare farebbe ritrovare il BAM
-# vecchio, che passerebbe la validazione: la pipeline riporterebbe PASS
-# restituendo esattamente i risultati che doveva sostituire.
+# Without this, changing the reference and re-launching would find the old BAM
+# again, and it would pass validation: the pipeline would report PASS while
+# returning exactly the results it was supposed to replace.
 # -----------------------------------------------------------------------------
 
 require_runtime
@@ -123,7 +123,7 @@ TMP_VOLUME="${BASE_TMP_VOLUME}_${RUN_KEY}"
 
 
 # -----------------------------------------------------------------------------
-# 2. Log e protezione contro due avvii simultanei
+# 2. Logging, and protection against two simultaneous starts
 # -----------------------------------------------------------------------------
 
 OUTPUT_DIR="${PROJECT_DIR}/output"
@@ -137,7 +137,7 @@ STATE_FILE="${LOG_DIR}/current_step.env"
 mkdir -p "$OUTPUT_DIR" "$REPORT_DIR" "$RUN_DIR"
 
 exec 9>"${LOG_DIR}/pipeline.lock"
-flock -n 9 || die "un'altra pipeline HG002 e' gia in esecuzione."
+flock -n 9 || die "another HG002 pipeline is already running."
 
 cat > "${LOG_DIR}/current_run.env.tmp" <<EOF
 RUN_ID=${RUN_ID}
@@ -149,9 +149,9 @@ STARTED=$(date --iso-8601=seconds)
 EOF
 mv -f "${LOG_DIR}/current_run.env.tmp" "${LOG_DIR}/current_run.env"
 
-# Il manifest elenca in chiaro gli ingredienti della chiave. Serve a poter
-# verificare, mesi dopo, da che cosa e' venuto un risultato: un hash da solo
-# dice che qualcosa e' cambiato, non che cosa.
+# The manifest lists the ingredients of the key in plain text. It is what lets
+# you verify, months later, where a result came from: a hash on its own tells
+# you that something changed, not what.
 write_run_manifest "${RUN_DIR}/run_manifest.json"
 
 printf 'Step\tStarted\tEnded\tSeconds\tStatus\n' > "$TIMING_FILE"
@@ -164,17 +164,17 @@ on_pipeline_exit() {
     if [[ "$rc" -ne 0 ]]; then
         pipeline_failed "$rc" "${BASH_LINENO[0]:-?}"
     fi
-    # Chiude il flusso verso tee e aspetta che il log sia scritto interamente.
+    # Closes the stream to tee and waits for the log to be written in full.
     exec 1>&3 2>&4
     wait "$TEE_PID" 2>/dev/null || true
     return "$rc"
 }
 trap on_pipeline_exit EXIT
 
-# Il controllo di integrita dei FASTQ dipende solo dai FASTQ, non dal
-# riferimento: un checkpoint della run precedente resta valido e rifarlo
-# costerebbe ore per nulla. Per questo l'elenco include anche i prefissi
-# senza chiave di provenance.
+# The FASTQ integrity check depends only on the FASTQ files, not on the
+# reference: a checkpoint from a previous run stays valid and redoing it would
+# cost hours for nothing. That is why the list also includes the prefixes from
+# before the provenance key existed.
 VALIDATION_CANDIDATES=(
     "${OUTPUT_DIR}/${PREFIX}.fastq_validation.json"
     "${OUTPUT_DIR}/${BASE_PREFIX}.fastq_validation.json"
@@ -185,47 +185,47 @@ VALIDATION_CANDIDATES=(
 )
 
 echo "============================================================"
-echo " Pipeline HG002 | modalita: ${MODE}"
+echo " HG002 pipeline | mode: ${MODE}"
 echo " Run: ${RUN_ID}"
-echo " Riferimento: ${REF_NAME}"
-echo " Chiave di provenance: ${RUN_KEY}"
-echo " Prefisso: ${PREFIX}"
+echo " Reference: ${REF_NAME}"
+echo " Provenance key: ${RUN_KEY}"
+echo " Prefix: ${PREFIX}"
 echo "============================================================"
 
 
 # =============================================================================
-# PASSO 1 - Controlli preliminari e integrita dei FASTQ
+# STAGE 1 - Preflight checks and FASTQ integrity
 # =============================================================================
 
 preflight
 ensure_fastq_integrity
 
 if [[ "$PREFLIGHT_ONLY" == "true" ]]; then
-    write_state "preflight" "Controlli preliminari" "PASS" "$(date --iso-8601=seconds)"
+    write_state "preflight" "Preflight checks" "PASS" "$(date --iso-8601=seconds)"
     echo
-    echo "PREFLIGHT SUPERATO. Nessun BAM o VCF e' stato calcolato."
+    echo "PREFLIGHT PASSED. No BAM or VCF was computed."
     exit 0
 fi
 
 
 # =============================================================================
-# PASSO 2 - FASTQ -> BAM allineato, ordinato e con duplicati marcati
+# STAGE 2 - FASTQ -> BAM, aligned, sorted and with duplicates marked
 # =============================================================================
 
 if valid_bam; then
     skip_step "2_fq2bam" "2/9 - fq2bam"
-    skip_step "2b_bam_check" "Controllo di integrita del BAM"
+    skip_step "2b_bam_check" "BAM integrity check"
 else
     if valid_partial_bam &&
        work_file_exists "/work/${PREFIX}.duplicate_metrics.partial.txt"; then
-        skip_step "2_fq2bam" "2/9 - fq2bam (output parziale gia completo)"
+        skip_step "2_fq2bam" "2/9 - fq2bam (partial output already complete)"
     else
         work_remove \
             "/work/${PREFIX}.partial.bam" \
             "/work/${PREFIX}.partial.bam.bai" \
             "/work/${PREFIX}.duplicate_metrics.partial.txt"
 
-        run_step "2_fq2bam" "2/9 - fq2bam: allineamento, sort e duplicati" \
+        run_step "2_fq2bam" "2/9 - fq2bam: alignment, sort and duplicates" \
             run_parabricks "hg002_2_fq2bam" \
             pbrun fq2bam \
             --ref "$REFERENCE" \
@@ -242,27 +242,28 @@ else
             --num-gpus 1
     fi
 
-    run_step "2b_bam_check" "Controllo BAM: struttura, indice e read group" \
+    run_step "2b_bam_check" "BAM check: structure, index and read group" \
         finalize_bam
-    valid_bam || die "il BAM finale non supera il controllo."
+    valid_bam || die "the final BAM does not pass the check."
 fi
 
 
 # =============================================================================
-# PASSO 3 - BQSR separato, poi chiamata delle varianti
+# STAGE 3 - BQSR on its own, then variant calling
 # =============================================================================
 
-# BQSR e' separato da fq2bam: cosi la RAM viene liberata tra i due processi.
+# BQSR is separate from fq2bam: that way the RAM is released between the two
+# processes.
 if valid_recal; then
     skip_step "3_bqsr" "3/9 - Base Quality Score Recalibration"
-    skip_step "3b_bqsr_check" "Controllo del report BQSR"
+    skip_step "3b_bqsr_check" "BQSR report check"
 else
     if tools_quiet bash /project/scripts/postprocess.sh check-recal \
         "/work/${PREFIX}.recal.partial.txt"; then
-        skip_step "3_bqsr" "3/9 - BQSR (report parziale gia completo)"
+        skip_step "3_bqsr" "3/9 - BQSR (partial report already complete)"
     else
         work_remove "/work/${PREFIX}.recal.partial.txt"
-        run_step "3_bqsr" "3/9 - BQSR: modello di ricalibrazione delle qualita" \
+        run_step "3_bqsr" "3/9 - BQSR: quality recalibration model" \
             run_parabricks "hg002_3_bqsr" \
             pbrun bqsr \
             --ref "$REFERENCE" \
@@ -273,22 +274,23 @@ else
             --tmp-dir /pbtmp \
             --num-gpus 1
     fi
-    run_step "3b_bqsr_check" "Controllo del report BQSR" finalize_recal
-    valid_recal || die "il report BQSR finale non e' valido."
+    run_step "3b_bqsr_check" "BQSR report check" finalize_recal
+    valid_recal || die "the final BQSR report is not valid."
 fi
 
-# HaplotypeCaller genera un gVCF e applica BQSR al volo con --in-recal-file.
+# HaplotypeCaller produces a gVCF and applies BQSR on the fly with
+# --in-recal-file.
 GVCF="/work/${PREFIX}.g.vcf.gz"
 GVCF_PARTIAL="/work/${PREFIX}.partial.g.vcf.gz"
 if valid_vcf "$GVCF"; then
     skip_step "4_haplotypecaller" "4/9 - HaplotypeCaller (gVCF)"
-    skip_step "4b_gvcf_check" "Controllo di integrita del gVCF"
+    skip_step "4b_gvcf_check" "gVCF integrity check"
 else
     if valid_vcf "$GVCF_PARTIAL"; then
-        skip_step "4_haplotypecaller" "4/9 - HaplotypeCaller (gVCF parziale valido)"
+        skip_step "4_haplotypecaller" "4/9 - HaplotypeCaller (partial gVCF valid)"
     else
         work_remove "$GVCF_PARTIAL" "${GVCF_PARTIAL}.tbi"
-        run_step "4_haplotypecaller" "4/9 - HaplotypeCaller: produzione del gVCF" \
+        run_step "4_haplotypecaller" "4/9 - HaplotypeCaller: producing the gVCF" \
             run_parabricks "hg002_4_haplotypecaller" \
             pbrun haplotypecaller \
             --ref "$REFERENCE" \
@@ -301,20 +303,20 @@ else
             --tmp-dir /pbtmp \
             --num-gpus 1
     fi
-    run_step "4b_gvcf_check" "Controllo e finalizzazione del gVCF" \
+    run_step "4b_gvcf_check" "gVCF check and finalisation" \
         finalize_vcf "$GVCF_PARTIAL" "$GVCF" "hg002_4b_gvcf_check"
-    valid_vcf "$GVCF" || die "il gVCF finale non e' valido."
+    valid_vcf "$GVCF" || die "the final gVCF is not valid."
 fi
 
-# GenotypeGVCF trasforma il gVCF in un normale VCF di varianti.
+# GenotypeGVCF turns the gVCF into an ordinary variant VCF.
 VCF="/work/${PREFIX}.vcf.gz"
 VCF_PARTIAL="/work/${PREFIX}.partial.vcf.gz"
 if valid_vcf "$VCF"; then
     skip_step "5_genotypegvcf" "5/9 - GenotypeGVCF"
-    skip_step "5b_vcf_check" "Controllo di integrita del VCF"
+    skip_step "5b_vcf_check" "VCF integrity check"
 else
     if valid_vcf "$VCF_PARTIAL"; then
-        skip_step "5_genotypegvcf" "5/9 - GenotypeGVCF (VCF parziale valido)"
+        skip_step "5_genotypegvcf" "5/9 - GenotypeGVCF (partial VCF valid)"
     else
         work_remove "$VCF_PARTIAL" "${VCF_PARTIAL}.tbi"
         run_step "5_genotypegvcf" "5/9 - GenotypeGVCF: gVCF -> VCF" \
@@ -325,74 +327,74 @@ else
             --out-vcf "$VCF_PARTIAL" \
             --tmp-dir /pbtmp
     fi
-    run_step "5b_vcf_check" "Controllo e finalizzazione del VCF" \
+    run_step "5b_vcf_check" "VCF check and finalisation" \
         finalize_vcf "$VCF_PARTIAL" "$VCF" "hg002_5b_vcf_check"
-    valid_vcf "$VCF" || die "il VCF finale non e' valido."
+    valid_vcf "$VCF" || die "the final VCF is not valid."
 fi
 
 
 # =============================================================================
-# PASSO 4 - Hard filtering e annotazione snpEff
+# STAGE 4 - Hard filtering and snpEff annotation
 # =============================================================================
 
 if valid_hardfilter; then
     skip_step "6_hardfilter" "6/9 - Hard filtering"
 else
-    run_step "6_hardfilter" "6/9 - Hard filtering senza eliminare record" \
+    run_step "6_hardfilter" "6/9 - Hard filtering without removing records" \
         run_tools "hg002_6_hardfilter" \
         bash /project/scripts/postprocess.sh hardfilter "$PREFIX" "$SAMPLE"
-    valid_hardfilter || die "il VCF hard-filtered non e' valido."
+    valid_hardfilter || die "the hard-filtered VCF is not valid."
 fi
 
 if valid_annotation; then
-    skip_step "7_annotation" "7/9 - Annotazione snpEff"
+    skip_step "7_annotation" "7/9 - snpEff annotation"
 else
-    run_step "7_annotation" "7/9 - Annotazione snpEff e tabella PASS+HIGH" \
+    run_step "7_annotation" "7/9 - snpEff annotation and PASS+HIGH table" \
         run_tools "hg002_7_annotation" \
         bash /project/scripts/postprocess.sh annotate "$PREFIX" "$SAMPLE"
-    valid_annotation || die "gli output di annotazione non sono validi."
+    valid_annotation || die "the annotation outputs are not valid."
 fi
 
 
 # =============================================================================
-# PASSO 5 - QC completo, esportazione su Windows e report HTML
+# STAGE 5 - Full QC, export to Windows and HTML report
 # =============================================================================
 
 if valid_qc; then
-    skip_step "8_qc" "8/9 - QC completo"
+    skip_step "8_qc" "8/9 - Full QC"
 else
-    run_step "8_qc" "8/9 - QC: allineamento, copertura e metriche WGS" \
+    run_step "8_qc" "8/9 - QC: alignment, coverage and WGS metrics" \
         run_tools "hg002_8_qc" \
         bash /project/scripts/postprocess.sh qc "$PREFIX" "$MODE"
-    valid_qc || die "le metriche QC obbligatorie sono incomplete."
+    valid_qc || die "the required QC metrics are incomplete."
 fi
 
-# I file grandi vengono copiati su C: soltanto ora, dopo tutti i controlli.
-# Se la copia fallisse, gli originali validi resterebbero nel volume Linux.
-run_step "8b_export" "Esportazione dei risultati gia validati su Windows" \
+# The large files are copied to C: only now, after every check. If the copy
+# failed, the valid originals would stay in the Linux volume.
+run_step "8b_export" "Exporting the already validated results to Windows" \
     export_results
 
-run_step "9_report" "9/9 - Report HTML e riepilogo JSON" \
+run_step "9_report" "9/9 - HTML report and JSON summary" \
     generate_report
 
 [[ -s "${REPORT_DIR}/${PREFIX}_Report.html" ]] ||
-    die "il report HTML non e' stato creato."
+    die "the HTML report was not created."
 [[ -s "${REPORT_DIR}/${PREFIX}_summary.json" ]] ||
-    die "il riepilogo JSON non e' stato creato."
+    die "the JSON summary was not created."
 
-# Il volume temporaneo e' dedicato a questa pipeline e non contiene risultati.
+# The temporary volume belongs to this pipeline and holds no results.
 docker volume rm "$TMP_VOLUME" >/dev/null 2>&1 || true
 
-write_state "complete" "Pipeline completata" "PASS" "$(date --iso-8601=seconds)"
+write_state "complete" "Pipeline complete" "PASS" "$(date --iso-8601=seconds)"
 
 echo
 echo "============================================================"
-echo " PIPELINE COMPLETATA E VALIDATA"
+echo " PIPELINE COMPLETE AND VALIDATED"
 echo "============================================================"
-echo " Risultati: ${OUTPUT_DIR}"
-echo " Report:    ${REPORT_DIR}/${PREFIX}_Report.html"
-echo " Log:       ${RUN_DIR}"
-echo " Volume di recupero: ${WORK_VOLUME}"
+echo " Results: ${OUTPUT_DIR}"
+echo " Report:  ${REPORT_DIR}/${PREFIX}_Report.html"
+echo " Logs:    ${RUN_DIR}"
+echo " Recovery volume: ${WORK_VOLUME}"
 echo
-echo " Il benchmark GIAB non e' stato eseguito: rimane separato."
+echo " The GIAB benchmark was not run: it stays separate."
 echo "============================================================"

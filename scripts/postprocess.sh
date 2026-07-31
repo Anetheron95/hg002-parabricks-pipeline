@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# Controlli e post-processing eseguiti nell'immagine bioinfo-codeserver.
+# Checks and post-processing run inside the bioinfo-codeserver image.
 
 set -Eeuo pipefail
 
 PROJECT="/project"
 WORK="/work"
 
-# Il riferimento arriva dall'ambiente: lo passano run_tools e tools_quiet in
-# pipeline_functions.sh, cosi' esiste un solo posto dove cambiarlo. Il default
-# serve solo a chi esegue questo script a mano.
+# The reference arrives from the environment: run_tools and tools_quiet in
+# pipeline_functions.sh pass it, so there is a single place to change it. The
+# default is only for someone running this script by hand.
 REFERENCE="${REFERENCE:-${PROJECT}/ref/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna}"
 REFERENCE_DICT="${REFERENCE_DICT:-${REFERENCE%.*}.dict}"
 
 usage() {
-    echo "Comando non valido per postprocess.sh" >&2
+    echo "Invalid command for postprocess.sh" >&2
     exit 2
 }
 
@@ -100,11 +100,11 @@ case "$command_name" in
                     }'
         }
 
-        echo "Leggo interamente R1 e R2 e controllo la struttura FASTQ..."
+        echo "Reading R1 and R2 in full and checking the FASTQ structure..."
         pairs_r1="$(validate_stream "$fq1")"
         pairs_r2="$(validate_stream "$fq2")"
         [[ "$pairs_r1" == "$pairs_r2" ]] || {
-            echo "R1 e R2 contengono un numero diverso di read." >&2
+            echo "R1 and R2 contain a different number of reads." >&2
             exit 2
         }
 
@@ -182,9 +182,9 @@ case "$command_name" in
 
         rm -f "${prefix}.tmp."* "$partial" "${partial}.tbi"
 
-        # I record sono divisi in tre gruppi, filtrati e poi riuniti.
-        # Il terzo gruppo conserva MNP, MIXED, SYMBOLIC e NO_VARIATION:
-        # nessun tipo di variante viene perso.
+        # Records are split into three groups, filtered, then merged back. The
+        # third group keeps MNP, MIXED, SYMBOLIC and NO_VARIATION: no variant
+        # type gets lost.
         gatk --java-options "-Xmx8g" SelectVariants \
             -R "$REFERENCE" -V "$raw" \
             --select-type-to-include SNP -O "$snps"
@@ -197,23 +197,23 @@ case "$command_name" in
             --select-type-to-exclude INDEL \
             -O "$other"
 
-        # I filtri hard sugli SNP sono DISATTIVATI per default dal 30 luglio 2026.
+        # The SNP hard filters are OFF by default since 30 July 2026.
         #
-        # Non e' una preferenza: e' una misura. Sul benchmark GIAB v4.2.1
-        # dell'iterazione 2, applicarli fa scendere l'F1 degli SNP da 0,9921 a
-        # 0,9883, perche' rimuovono 40.409 veri positivi per eliminarne 15.445
-        # falsi -- 2,6 buoni per ogni errore preso. Lo stesso valeva per la
-        # baseline (3,0 per 1), quindi non e' un effetto del cambio di
-        # riferimento: le soglie storiche di GATK sono tarate su dati e
-        # profondita' diversi da questi.
+        # That is not a preference, it is a measurement. On the GIAB v4.2.1
+        # benchmark of iteration 2, applying them drops SNP F1 from 0.9921 to
+        # 0.9883, because they remove 40,409 true positives to eliminate 15,445
+        # false ones -- 2.6 good ones for every error caught. The same held for
+        # the baseline (3.0 to 1), so it is not an effect of changing reference:
+        # GATK's historical thresholds are tuned on data and depths different
+        # from these.
         #
-        # Sugli indel restano attivi, perche' li' sono neutri o lievemente
-        # utili: F1 da 0,9924 (ALL) a 0,9928 (PASS).
+        # On indels they stay on, because there they are neutral or slightly
+        # useful: F1 from 0.9924 (ALL) to 0.9928 (PASS).
         #
-        # Per ripristinare il comportamento precedente:  HG002_SNP_HARD_FILTERS=on
-        snp_filtri=()
+        # To restore the previous behaviour:  HG002_SNP_HARD_FILTERS=on
+        snp_filters=()
         if [[ "${HG002_SNP_HARD_FILTERS:-off}" == "on" ]]; then
-            snp_filtri=(
+            snp_filters=(
                 --filter-name "SNP_QD2"            --filter-expression "QD < 2.0"
                 --filter-name "SNP_QUAL30"         --filter-expression "QUAL < 30.0"
                 --filter-name "SNP_SOR3"           --filter-expression "SOR > 3.0"
@@ -224,13 +224,13 @@ case "$command_name" in
             )
         fi
 
-        if [[ ${#snp_filtri[@]} -gt 0 ]]; then
-            echo "Filtri hard sugli SNP: ATTIVI (HG002_SNP_HARD_FILTERS=on)"
+        if [[ ${#snp_filters[@]} -gt 0 ]]; then
+            echo "SNP hard filters: ON (HG002_SNP_HARD_FILTERS=on)"
             gatk --java-options "-Xmx8g" VariantFiltration \
                 -R "$REFERENCE" -V "$snps" -O "${prefix}.tmp.snps.filtered.vcf.gz" \
-                "${snp_filtri[@]}"
+                "${snp_filters[@]}"
         else
-            echo "Filtri hard sugli SNP: disattivati (F1 0,9921 contro 0,9883 con filtri)"
+            echo "SNP hard filters: off (F1 0.9921 against 0.9883 with filters)"
             cp -f "$snps" "${prefix}.tmp.snps.filtered.vcf.gz"
             if [[ -s "${snps}.tbi" ]]; then
                 cp -f "${snps}.tbi" "${prefix}.tmp.snps.filtered.vcf.gz.tbi"
@@ -264,7 +264,7 @@ case "$command_name" in
         raw_count="$(count_records "$raw")"
         filtered_count="$(count_records "$partial")"
         [[ "$raw_count" == "$filtered_count" ]] || {
-            echo "Record persi: VCF=${raw_count}, hard-filtered=${filtered_count}" >&2
+            echo "Records lost: VCF=${raw_count}, hard-filtered=${filtered_count}" >&2
             exit 2
         }
         check_vcf "$partial" "${partial}.tbi" "$sample"
@@ -272,7 +272,7 @@ case "$command_name" in
         mv -f "$partial" "$final"
         mv -f "${partial}.tbi" "${final}.tbi"
         rm -f "${prefix}.tmp."*
-        echo "Hard filtering completato senza eliminare record: ${raw_count}."
+        echo "Hard filtering complete without removing records: ${raw_count}."
         ;;
 
     check-hardfilter)
@@ -313,8 +313,8 @@ case "$command_name" in
             -stats "$partial_stats" hg38 "$input" \
             > "$partial_vcf" 2> "$partial_log"
 
-        # La tabella didattica contiene solo varianti che hanno superato gli
-        # hard filter e mantiene sempre dodici colonne, anche con piu trascritti.
+        # The shortlist contains only variants that cleared the hard filters and
+        # always keeps twelve columns, even with several transcripts.
         SnpSift filter "(FILTER = 'PASS') & (ANN[*].IMPACT = 'HIGH')" \
             "$partial_vcf" > "$high_vcf"
         SnpSift extractFields -s "," -e "." "$high_vcf" \
@@ -335,7 +335,7 @@ case "$command_name" in
         filtered_count="$(count_records "$input")"
         annotated_count="$(count_records "$partial_gz")"
         [[ "$filtered_count" == "$annotated_count" ]] || {
-            echo "Record persi: filtered=${filtered_count}, annotated=${annotated_count}" >&2
+            echo "Records lost: filtered=${filtered_count}, annotated=${annotated_count}" >&2
             exit 2
         }
 
@@ -362,8 +362,8 @@ case "$command_name" in
         mv -f "${prefix}.annotation_qc.partial.tsv" "${prefix}.annotation_qc.tsv"
         rm -f "$high_vcf"
 
-        echo "Record annotati: ${annotated_count}; PASS+HIGH: ${high_count}."
-        echo "Contig non presenti nel database snpEff: ${chromosome_errors}."
+        echo "Annotated records: ${annotated_count}; PASS+HIGH: ${high_count}."
+        echo "Contigs absent from the snpEff database: ${chromosome_errors}."
         tail -n 20 "$final_log" >&2
         ;;
 
@@ -422,24 +422,24 @@ case "$command_name" in
             -O "$interval_list" \
             -SD "$REFERENCE_DICT"
 
-        # CollectWgsMetrics produce direttamente PCT_1X/10X/20X/30X senza
-        # generare una riga per ognuno dei ~3,1 miliardi di loci.
+        # CollectWgsMetrics produces PCT_1X/10X/20X/30X directly, without
+        # emitting a row for each of the ~3.1 billion loci.
         #
-        # Il collector "veloce" di Picard dimensiona i contatori su READ_LENGTH.
-        # Il valore predefinito e' 150: con read da 151 bp si ottiene
-        # "ArrayIndexOutOfBoundsException: requested index ... out of counter
-        # bounds". Leggiamo quindi la lunghezza reale da samtools stats, che e'
-        # gia stato calcolato qui sopra, invece di affidarci al default.
+        # Picard's "fast" collector sizes its counters on READ_LENGTH. The
+        # default is 150: with 151 bp reads you get "ArrayIndexOutOfBoundsException:
+        # requested index ... out of counter bounds". So the real length is read
+        # from samtools stats, which has already run just above, instead of
+        # trusting the default.
         read_length="$(
             awk -F '\t' '$2 == "maximum length:" {print $3; exit}' \
                 "${prefix}.samtools_stats.txt.partial"
         )"
         read_length="${read_length:-151}"
 
-        # Anche con READ_LENGTH corretto il collector veloce ha un baco noto
-        # nella gestione della finestra (Picard #1523, #1970). Se fallisce si
-        # ripiega sull'algoritmo standard: piu lento, ma senza quel problema.
-        # Meglio qualche minuto in piu' che perdere una run da sette ore.
+        # Even with the right READ_LENGTH the fast collector has a known bug in
+        # its window handling (Picard #1523, #1970). If it fails, fall back to
+        # the standard algorithm: slower, but without that problem. A few extra
+        # minutes beat losing a seven-hour run.
         if ! gatk --java-options "-Xmx8g" CollectWgsMetrics \
                 -I "$bam" \
                 -O "${prefix}.wgs_metrics.txt.partial" \
@@ -451,8 +451,8 @@ case "$command_name" in
                 --MINIMUM_MAPPING_QUALITY 20 \
                 --MINIMUM_BASE_QUALITY 20 \
                 --TMP_DIR /pbtmp; then
-            echo "CollectWgsMetrics veloce fallito con READ_LENGTH=${read_length};" \
-                 "riprovo con l'algoritmo standard." >&2
+            echo "Fast CollectWgsMetrics failed with READ_LENGTH=${read_length};" \
+                 "retrying with the standard algorithm." >&2
             rm -f "${prefix}.wgs_metrics.txt.partial"
             gatk --java-options "-Xmx8g" CollectWgsMetrics \
                 -I "$bam" \
@@ -530,4 +530,3 @@ case "$command_name" in
         usage
         ;;
 esac
-
