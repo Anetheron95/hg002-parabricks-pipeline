@@ -1,8 +1,7 @@
 # HG002 germline WGS with NVIDIA Parabricks
 
 Educational germline analysis of the HG002 reference sample, sequenced on
-NovaSeq PCR-free at nominal 40× coverage, on a consumer Nvidia RTX 3090 driven
-by a Lenovo Legion 5 ARH7H laptop with its internal RTX 3060 disabled.
+NovaSeq PCR-free at nominal 40× coverage, on a eGPU Nvidia RTX 3090 linked to Lenovo Legion 5 ARH7H laptop with its internal RTX 3060 disabled.
 
 The pipeline runs automatically: integrity check and pairing of the FASTQ files,
 BWA alignment with sorting and duplicate marking, BAM verification, BQSR as a
