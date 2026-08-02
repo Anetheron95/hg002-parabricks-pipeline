@@ -8,15 +8,13 @@ single-GPU system should still meet the two-GPU bar: **at least 100 GB of CPU RA
 and at least 24 CPU threads**.
 
 This repository runs it on a gaming laptop with 31 GB of RAM and 12 threads,
-driving one consumer GPU over OcuLink through an external PCIe dock — and
+driving one consumer GPU over OcuLink through an external PCIe dock and
 measures what
 that costs, and what it does not.
 
 The short version: **one HG002 whole genome, FASTQ to annotated VCF, in 10 h
 31 m**, benchmarked against the Genome in a Bottle truth set at **F1 0.9921 for
-SNPs and 0.9924 for indels**. The wall clock pays for the missing hardware. The
-accuracy does not.
-
+SNPs and 0.9924 for indels**.
 ![Where the ten and a half hours go](docs/figures/runtime_breakdown.png)
 
 ## The constraint
@@ -76,7 +74,7 @@ change very little.
 
 The interesting question is not whether a 3090 beats a data-centre card. It is
 whether it beats *not having it*, on the same modest box. So: same machine, same
-reads, same reference, one variable — what does the computing.
+reads, same reference, one variable... what does the computing.
 
 ![CPU versus GPU on the same machine](docs/figures/cpu_vs_gpu.png)
 
