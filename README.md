@@ -62,13 +62,13 @@ alignment shows exactly which component is the limit:
 
 The GPU holds a steady 1.58 billion bases per minute while, across the 555
 samples of that phase, **CPU use runs at a median of 98.6 % and memory at a
-median of 90 %, peaking at 99.3 %** — for an hour and a half without let-up.
+median of 90 %, peaking at 99.3 %**  for an hour and a half without let-up.
 `fq2bam` requests 16 CPU worker threads on a host that has 10. The accelerator is
 waiting on the box around it.
 
 That single fact justifies every flag in the list above, and it is also the
-honest answer to "why not a bigger GPU?" — on this machine a bigger GPU would
-change very little.
+honest answer to "why not a bigger GPU?" 
+on this machine a bigger GPU would change very little.
 
 ## What the GPU is worth here
 
@@ -86,10 +86,10 @@ Measured on this machine:
 | HaplotypeCaller, `chr20:1-20 Mb` at real ~35× depth | **2 m 02 s** | 9 m 38 s | **4.7×** |
 
 And the two paths agree: of the 40,022 variant sites called in that region,
-**40,020 are identical** — two found only by Parabricks, two only by GATK.
+**40,020 are identical**  two found only by Parabricks, two only by GATK.
 The speed is not bought with a different answer.
 
-Extrapolated to the whole genome, at the rates just measured — 149.6 µs per read
+Extrapolated to the whole genome at the rates just measured : 149.6 µs per read
 pair for alignment, 28.9 s per Mb for calling:
 
 | | GPU, measured | CPU, projected |
@@ -110,13 +110,13 @@ full genome would take more than a day of machine time; variant calling is
 measured on a fixed region of the **full-coverage BAM the pipeline already
 produced**, so the caller sees real ~35× depth rather than the thin coverage a
 subset would give. Neither side applies BQSR, so what is compared is the caller
-and nothing else. The CPU path is the ordinary Best Practices one — `bwa mem` |
+and nothing else. The CPU path is the ordinary Best Practices one  `bwa mem` |
 `samtools sort`, then `gatk MarkDuplicates`, then `gatk HaplotypeCaller` — on all
 10 threads WSL2 exposes.
 
 ## Does the output survive the constraint?
 
-Accuracy is measured, not asserted: `hap.py` v0.3.12 with the `vcfeval` engine
+Accuracy is measured: `hap.py` v0.3.12 with the `vcfeval` engine
 against **NIST HG002 GRCh38 v4.2.1**, restricted to the high-confidence BED
 (3,365,127 SNPs and 525,469 indels over chr1–22).
 
@@ -130,7 +130,7 @@ against **NIST HG002 GRCh38 v4.2.1**, restricted to the high-confidence BED
 For reference, a well-tuned GATK pipeline at this depth is generally taken to
 reach about 0.995. The gap that remains sits in ordinary repeats and segmental
 duplications, in residual multi-mapping, and plausibly in a BQSR known-sites set
-limited to dbSNP alone — not in the hardware.
+limited to dbSNP alone , not in the hardware.
 
 Supporting metrics, from the same run:
 
@@ -175,7 +175,7 @@ criteria and its predictions were written *before* measuring and are in
 and the two that failed are documented there with the reason.
 
 The fix was a trade, not a free win: 77,223 recovered true positives arrived with
-6,509 new false positives — 11.9 true for every false — and SNP precision fell
+6,509 new false positives ( 11.9 true for every false ) and SNP precision fell
 from 99.33 % to 99.16 %.
 
 Two things the second run also settled:
@@ -212,8 +212,7 @@ of chrY calls outside PAR were heterozygous. A separate haploid call set,
 `output/HG002_NovaSeq_40x_53007e55.haploid.vcf.gz`, comes from re-running
 HaplotypeCaller with `--ploidy 1` between PAR1 and PAR2; all 110,099 genotypes in
 it are haploid and none is heterozygous. It is **not benchmarked**, because GIAB
-does not cover the sex chromosomes: more defensible biologically, not measured to
-be more accurate.
+does not cover the sex chromosomes.
 
 **chrM is not addressed.** It is represented diploid, which is not a heteroplasmy
 analysis by any definition.
@@ -292,7 +291,7 @@ docker run --rm --mount "type=bind,source=$PWD,target=/w" \
   predictions written before the measurements that tested them.
 
 The FASTQ files, the reference, the databases and the outputs are excluded by
-`.gitignore` — the two FASTQ are 34 and 35 GB, the BAM is 92 GB. What is tracked
+`.gitignore` . the two FASTQ are 34 and 35 GB, the BAM is 92 GB. What is tracked
 is the code, the documentation and the small result files that make the claims
 above checkable.
 
